@@ -1,0 +1,71 @@
+[package]
+name = "rdm"
+version = "0.1.0"
+edition = "2021"
+description = "Agent-first Redmine CLI with markdown-first output"
+license = "MIT"
+authors = []
+
+[[bin]]
+name = "rdm"
+path = "src/main.rs"
+
+[dependencies]
+# CLI parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
+
+# HTTP client with rustls (no OpenSSL dependency)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Configuration management
+figment = { version = "0.10", features = ["toml", "env"] }
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging/tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Cross-platform paths
+directories = "6"
+
+# Retry with backoff
+backoff = { version = "0.4", features = ["tokio"] }
+
+# Error handling
+thiserror = "2"
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Conditions to changes here)
+cargo-dist-version = "0.27.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = []
+# Target platforms to build for
+targets = ["x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false

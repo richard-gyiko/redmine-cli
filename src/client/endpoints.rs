@@ -1,0 +1,575 @@
+//! Redmine API client implementation with retry/backoff.
+
+use backoff::{future::retry, ExponentialBackoff};
+use reqwest::{Client, Method, RequestBuilder, Response, StatusCode};
+use serde::de::DeserializeOwned;
+use std::time::Duration;
+use tracing::{debug, warn};
+
+use crate::config::Config;
+use crate::error::{AppError, Result};
+use crate::models::*;
+
+/// Redmine API client.
+pub struct RedmineClient {
+    client: Client,
+    base_url: String,
+    api_key: String,
+    dry_run: bool,
+}
+
+impl RedmineClient {
+    /// Create a new Redmine client.
+    pub fn new(config: &Config, dry_run: bool) -> Result<Self> {
+        let client = Client::builder()
+            .use_rustls_tls()
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .user_agent(format!("rdm/{}", env!("CARGO_PKG_VERSION")))
+            .gzip(true)
+            .build()
+            .map_err(|e| AppError::network(format!("Failed to create HTTP client: {}", e)))?;
+
+        let base_url = config.url.trim_end_matches('/').to_string();
+
+        Ok(Self {
+            client,
+            base_url,
+            api_key: config.api_key.clone(),
+            dry_run,
+        })
+    }
+
+    /// Build a request with authentication.
+    fn request(&self, method: Method, path: &str) -> RequestBuilder {
+        let url = format!("{}{}", self.base_url, path);
+        debug!("Building request: {} {}", method, url);
+        self.client
+            .request(method, &url)
+            .header("X-Redmine-API-Key", &self.api_key)
+            .header("Content-Type", "application/json")
+    }
+
+    /// Execute a request with retry for transient errors.
+    async fn execute(&self, request: RequestBuilder) -> Result<Response> {
+        let backoff = ExponentialBackoff {
+            max_elapsed_time: Some(Duration::from_secs(30)),
+            ..Default::default()
+        };
+
+        let request = request
+            .build()
+            .map_err(|e| AppError::network(format!("Failed to build request: {}", e)))?;
+
+        debug!("Executing request: {} {}", request.method(), request.url());
+
+        let client = self.client.clone();
+        let method = request.method().clone();
+        let url = request.url().clone();
+        let headers = request.headers().clone();
+        let body = request
+            .body()
+            .and_then(|b| b.as_bytes().map(|b| b.to_vec()));
+
+        retry(backoff, || async {
+            let mut req_builder = client.request(method.clone(), url.clone());
+            for (key, value) in headers.iter() {
+                req_builder = req_builder.header(key, value);
+            }
+            if let Some(ref body_bytes) = body {
+                req_builder = req_builder.body(body_bytes.clone());
+            }
+
+            let response = req_builder.send().await.map_err(|e| {
+                if e.is_timeout() || e.is_connect() {
+                    warn!("Transient error, will retry: {}", e);
+                    backoff::Error::transient(AppError::network(format!("Request failed: {}", e)))
+                } else {
+                    backoff::Error::permanent(AppError::network(format!("Request failed: {}", e)))
+                }
+            })?;
+
+            let status = response.status();
+            debug!("Response status: {}", status);
+
+            // Retry on 502, 503, 504
+            if matches!(
+                status,
+                StatusCode::BAD_GATEWAY
+                    | StatusCode::SERVICE_UNAVAILABLE
+                    | StatusCode::GATEWAY_TIMEOUT
+            ) {
+                warn!("Server error {}, will retry", status);
+                return Err(backoff::Error::transient(AppError::api(
+                    format!("Server error: {}", status),
+                    Some(status.as_u16()),
+                )));
+            }
+
+            Ok(response)
+        })
+        .await
+    }
+
+    /// Parse a JSON response.
+    async fn parse_json<T: DeserializeOwned>(response: Response) -> Result<T> {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|e| AppError::network(format!("Failed to read response: {}", e)))?;
+
+        debug!("Response body: {}", body);
+
+        if status == StatusCode::UNAUTHORIZED {
+            return Err(AppError::auth_with_hint(
+                "Invalid API key or unauthorized",
+                "Check your API key with `rdm config show` or set REDMINE_API_KEY.",
+            ));
+        }
+
+        if status == StatusCode::FORBIDDEN {
+            return Err(AppError::auth("Access forbidden - check your permissions"));
+        }
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::api("Resource not found", Some(404)));
+        }
+
+        if !status.is_success() {
+            return Err(AppError::api(
+                format!("API request failed: {} - {}", status, body),
+                Some(status.as_u16()),
+            ));
+        }
+
+        serde_json::from_str(&body).map_err(|e| {
+            AppError::api(
+                format!("Failed to parse response: {} - body: {}", e, body),
+                None,
+            )
+        })
+    }
+
+    /// Ping the server to check connectivity.
+    pub async fn ping(&self) -> Result<PingResponse> {
+        if self.dry_run {
+            return Ok(PingResponse {
+                status: "dry-run".to_string(),
+                url: self.base_url.clone(),
+            });
+        }
+
+        let response = self
+            .execute(self.request(Method::GET, "/users/current.json"))
+            .await?;
+        let status = response.status();
+
+        if status.is_success() {
+            Ok(PingResponse {
+                status: "ok".to_string(),
+                url: self.base_url.clone(),
+            })
+        } else if status == StatusCode::UNAUTHORIZED {
+            Err(AppError::auth_with_hint(
+                "Invalid API key",
+                "Check your API key with `rma config show`.",
+            ))
+        } else {
+            Err(AppError::api(
+                format!("Server returned {}", status),
+                Some(status.as_u16()),
+            ))
+        }
+    }
+
+    /// Get the current user.
+    pub async fn me(&self) -> Result<CurrentUser> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with 'me' command",
+            ));
+        }
+
+        let response = self
+            .execute(self.request(Method::GET, "/users/current.json"))
+            .await?;
+        let wrapper: CurrentUserResponse = Self::parse_json(response).await?;
+        Ok(wrapper.user)
+    }
+
+    // === Projects ===
+
+    /// List projects.
+    pub async fn list_projects(&self, limit: u32, offset: u32) -> Result<ProjectList> {
+        if self.dry_run {
+            return Ok(ProjectList {
+                projects: vec![],
+                total_count: Some(0),
+                offset: Some(offset),
+                limit: Some(limit),
+            });
+        }
+
+        let path = format!("/projects.json?limit={}&offset={}", limit, offset);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        Self::parse_json(response).await
+    }
+
+    /// Get a project by ID or identifier.
+    pub async fn get_project(&self, id_or_identifier: &str) -> Result<Project> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with 'get' command",
+            ));
+        }
+
+        let path = format!("/projects/{}.json", id_or_identifier);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Project",
+                id_or_identifier,
+                "Use `rdm project list` to see available projects.",
+            ));
+        }
+
+        let wrapper: ProjectResponse = Self::parse_json(response).await?;
+        Ok(wrapper.project)
+    }
+
+    // === Issues ===
+
+    /// List issues with optional filters.
+    pub async fn list_issues(&self, filters: IssueFilters) -> Result<IssueList> {
+        if self.dry_run {
+            return Ok(IssueList {
+                issues: vec![],
+                total_count: Some(0),
+                offset: Some(filters.offset),
+                limit: Some(filters.limit),
+            });
+        }
+
+        let mut params = vec![
+            format!("limit={}", filters.limit),
+            format!("offset={}", filters.offset),
+        ];
+
+        if let Some(project) = &filters.project {
+            params.push(format!("project_id={}", project));
+        }
+        if let Some(status) = &filters.status {
+            params.push(format!("status_id={}", status));
+        }
+        if let Some(assigned_to) = &filters.assigned_to {
+            params.push(format!("assigned_to_id={}", assigned_to));
+        }
+        if let Some(author) = &filters.author {
+            params.push(format!("author_id={}", author));
+        }
+        if let Some(tracker) = &filters.tracker {
+            params.push(format!("tracker_id={}", tracker));
+        }
+
+        let path = format!("/issues.json?{}", params.join("&"));
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        Self::parse_json(response).await
+    }
+
+    /// Get an issue by ID.
+    pub async fn get_issue(&self, id: u32) -> Result<Issue> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with 'get' command",
+            ));
+        }
+
+        let path = format!("/issues/{}.json", id);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Issue",
+                id.to_string(),
+                "Use `rdm issue list` to find available issues.",
+            ));
+        }
+
+        let wrapper: IssueResponse = Self::parse_json(response).await?;
+        Ok(wrapper.issue)
+    }
+
+    /// Create a new issue.
+    pub async fn create_issue(&self, issue: NewIssue) -> Result<Issue> {
+        if self.dry_run {
+            let body = serde_json::to_string_pretty(&NewIssueRequest { issue })
+                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
+            println!("DRY RUN: POST /issues.json");
+            println!("{}", body);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let request = self
+            .request(Method::POST, "/issues.json")
+            .json(&NewIssueRequest { issue });
+        let response = self.execute(request).await?;
+        let wrapper: IssueResponse = Self::parse_json(response).await?;
+        Ok(wrapper.issue)
+    }
+
+    /// Update an issue.
+    pub async fn update_issue(&self, id: u32, update: UpdateIssue) -> Result<()> {
+        if self.dry_run {
+            let body = serde_json::to_string_pretty(&UpdateIssueRequest { issue: update })
+                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
+            println!("DRY RUN: PUT /issues/{}.json", id);
+            println!("{}", body);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let path = format!("/issues/{}.json", id);
+        let request = self
+            .request(Method::PUT, &path)
+            .json(&UpdateIssueRequest { issue: update });
+        let response = self.execute(request).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Issue",
+                id.to_string(),
+                "Use `rdm issue list` to find available issues.",
+            ));
+        }
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::api(
+                format!("Failed to update issue: {}", body),
+                Some(status.as_u16()),
+            ));
+        }
+
+        Ok(())
+    }
+
+    // === Time Entries ===
+
+    /// List time entry activities.
+    pub async fn list_activities(&self) -> Result<ActivityList> {
+        if self.dry_run {
+            return Ok(ActivityList {
+                time_entry_activities: vec![],
+            });
+        }
+
+        let response = self
+            .execute(self.request(Method::GET, "/enumerations/time_entry_activities.json"))
+            .await?;
+        Self::parse_json(response).await
+    }
+
+    /// List time entries with optional filters.
+    pub async fn list_time_entries(&self, filters: TimeEntryFilters) -> Result<TimeEntryList> {
+        if self.dry_run {
+            return Ok(TimeEntryList {
+                time_entries: vec![],
+                total_count: Some(0),
+                offset: Some(filters.offset),
+                limit: Some(filters.limit),
+            });
+        }
+
+        let mut params = vec![
+            format!("limit={}", filters.limit),
+            format!("offset={}", filters.offset),
+        ];
+
+        if let Some(project) = &filters.project {
+            params.push(format!("project_id={}", project));
+        }
+        if let Some(issue) = &filters.issue {
+            params.push(format!("issue_id={}", issue));
+        }
+        if let Some(user) = &filters.user {
+            params.push(format!("user_id={}", user));
+        }
+        if let Some(from) = &filters.from {
+            params.push(format!("from={}", from));
+        }
+        if let Some(to) = &filters.to {
+            params.push(format!("to={}", to));
+        }
+
+        let path = format!("/time_entries.json?{}", params.join("&"));
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        Self::parse_json(response).await
+    }
+
+    /// Get a time entry by ID.
+    pub async fn get_time_entry(&self, id: u32) -> Result<TimeEntry> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with 'get' command",
+            ));
+        }
+
+        let path = format!("/time_entries/{}.json", id);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Time entry",
+                id.to_string(),
+                "Use `rdm time list` to find available time entries.",
+            ));
+        }
+
+        let wrapper: TimeEntryResponse = Self::parse_json(response).await?;
+        Ok(wrapper.time_entry)
+    }
+
+    /// Create a new time entry.
+    pub async fn create_time_entry(&self, entry: NewTimeEntry) -> Result<TimeEntry> {
+        if self.dry_run {
+            let body = serde_json::to_string_pretty(&NewTimeEntryRequest { time_entry: entry })
+                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
+            println!("DRY RUN: POST /time_entries.json");
+            println!("{}", body);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let request = self
+            .request(Method::POST, "/time_entries.json")
+            .json(&NewTimeEntryRequest { time_entry: entry });
+        let response = self.execute(request).await?;
+        let wrapper: TimeEntryResponse = Self::parse_json(response).await?;
+        Ok(wrapper.time_entry)
+    }
+
+    /// Update a time entry.
+    pub async fn update_time_entry(&self, id: u32, update: UpdateTimeEntry) -> Result<TimeEntry> {
+        if self.dry_run {
+            let body = serde_json::to_string_pretty(&UpdateTimeEntryRequest { time_entry: update })
+                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
+            println!("DRY RUN: PUT /time_entries/{}.json", id);
+            println!("{}", body);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let path = format!("/time_entries/{}.json", id);
+        let request = self
+            .request(Method::PUT, &path)
+            .json(&UpdateTimeEntryRequest { time_entry: update });
+        let response = self.execute(request).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Time entry",
+                id.to_string(),
+                "Use `rdm time list` to find available time entries.",
+            ));
+        }
+
+        // Fetch the updated entry to return it
+        self.get_time_entry(id).await
+    }
+
+    /// Delete a time entry.
+    pub async fn delete_time_entry(&self, id: u32) -> Result<()> {
+        if self.dry_run {
+            println!("DRY RUN: DELETE /time_entries/{}.json", id);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let path = format!("/time_entries/{}.json", id);
+        let response = self.execute(self.request(Method::DELETE, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Time entry",
+                id.to_string(),
+                "Use `rdm time list` to find available time entries.",
+            ));
+        }
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::api(
+                format!("Failed to delete time entry: {}", body),
+                Some(status.as_u16()),
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Ping response.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PingResponse {
+    pub status: String,
+    pub url: String,
+}
+
+impl crate::output::MarkdownOutput for PingResponse {
+    fn to_markdown(&self, _meta: &crate::output::Meta) -> String {
+        format!(
+            "## Connection Status\n\n- **Status**: {}\n- **URL**: {}\n",
+            self.status, self.url
+        )
+    }
+}
+
+/// Issue list filters.
+#[derive(Debug, Clone, Default)]
+pub struct IssueFilters {
+    pub project: Option<String>,
+    pub status: Option<String>,
+    pub assigned_to: Option<String>,
+    pub author: Option<String>,
+    pub tracker: Option<String>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+impl IssueFilters {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        Self {
+            limit: 25,
+            offset: 0,
+            ..Default::default()
+        }
+    }
+}
+
+/// Time entry list filters.
+#[derive(Debug, Clone, Default)]
+pub struct TimeEntryFilters {
+    pub project: Option<String>,
+    pub issue: Option<u32>,
+    pub user: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+impl TimeEntryFilters {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        Self {
+            limit: 25,
+            offset: 0,
+            ..Default::default()
+        }
+    }
+}
