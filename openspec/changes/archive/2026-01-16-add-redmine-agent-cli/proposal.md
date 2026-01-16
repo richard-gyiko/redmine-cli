@@ -4,7 +4,7 @@
 LLM/agent automation workflows need a fast, deterministic CLI to interact with Redmine. Existing tools are either interactive, produce unstructured output, or optimize for human readability over machine parsing. Agents work best with well-formatted Markdown that provides context, structure, and clear data presentation.
 
 ## What Changes
-- **NEW**: Complete Rust CLI application (`rma`) from scratch
+- **NEW**: Complete Rust CLI application (`rdm`) from scratch
 - **NEW**: **Markdown-first output** optimized for LLM/agent consumption (default format)
 - **NEW**: Profile-based configuration with env var + config file support
 - **NEW**: Redmine API client with retry/backoff and rustls TLS

@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 
 /// Agent-first Redmine CLI with markdown-first output.
 #[derive(Debug, Parser)]
-#[command(name = "rma", version, about, long_about = None)]
+#[command(name = "rdm", version, about, long_about = None)]
 pub struct Cli {
     /// Output format (markdown or json).
     #[arg(

@@ -208,7 +208,7 @@ impl MarkdownOutput for Issue {
         }
 
         output.push_str(&format!(
-            "\n*Use `rma issue update --id {}` to modify this issue*\n",
+            "\n*Use `rdm issue update --id {}` to modify this issue*\n",
             self.id
         ));
 
@@ -257,7 +257,7 @@ impl MarkdownOutput for IssueList {
 
         output.push_str(&markdown_table(headers, rows));
 
-        if let Some(hint) = pagination_hint("rma issue list ", meta) {
+        if let Some(hint) = pagination_hint("rdm issue list ", meta) {
             output.push('\n');
             output.push_str(&hint);
             output.push('\n');

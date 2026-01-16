@@ -1261,6 +1261,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdm"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "backoff",
+ "chrono",
+ "clap",
+ "directories",
+ "figment",
+ "predicates",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "wiremock",
+]
+
+[[package]]
 name = "redox_users"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1350,29 +1373,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rma"
-version = "0.1.0"
-dependencies = [
- "assert_cmd",
- "backoff",
- "chrono",
- "clap",
- "directories",
- "figment",
- "predicates",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "wiremock",
 ]
 
 [[package]]

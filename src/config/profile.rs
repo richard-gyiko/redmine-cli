@@ -96,7 +96,7 @@ impl ProfileStore {
             return Err(AppError::not_found_with_hint(
                 "Profile",
                 name,
-                "Use `rma profile list` to see available profiles.",
+                "Use `rdm profile list` to see available profiles.",
             ));
         }
         self.profiles.remove(name);
@@ -113,7 +113,7 @@ impl ProfileStore {
             return Err(AppError::not_found_with_hint(
                 "Profile",
                 name,
-                "Use `rma profile list` to see available profiles.",
+                "Use `rdm profile list` to see available profiles.",
             ));
         }
         self.active = Some(name.to_string());

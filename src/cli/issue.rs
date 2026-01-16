@@ -138,7 +138,7 @@ impl MarkdownOutput for IssueCreated {
         output.push_str(&markdown_kv_table(&pairs_ref));
 
         output.push_str(&format!(
-            "\n*Use `rma issue get --id {}` to view full details*\n",
+            "\n*Use `rdm issue get --id {}` to view full details*\n",
             i.id
         ));
         output
@@ -153,7 +153,7 @@ pub struct IssueUpdated {
 
 impl MarkdownOutput for IssueUpdated {
     fn to_markdown(&self, _meta: &Meta) -> String {
-        format!("## Issue Updated\n\nIssue #{} has been updated.\n\n*Use `rma issue get --id {}` to view changes*\n", self.id, self.id)
+        format!("## Issue Updated\n\nIssue #{} has been updated.\n\n*Use `rdm issue get --id {}` to view changes*\n", self.id, self.id)
     }
 }
 

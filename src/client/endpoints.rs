@@ -25,7 +25,7 @@ impl RedmineClient {
             .use_rustls_tls()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(10))
-            .user_agent(format!("rma/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("rdm/{}", env!("CARGO_PKG_VERSION")))
             .gzip(true)
             .build()
             .map_err(|e| AppError::network(format!("Failed to create HTTP client: {}", e)))?;
@@ -124,7 +124,7 @@ impl RedmineClient {
         if status == StatusCode::UNAUTHORIZED {
             return Err(AppError::auth_with_hint(
                 "Invalid API key or unauthorized",
-                "Check your API key with `rma config show` or set REDMINE_API_KEY.",
+                "Check your API key with `rdm config show` or set REDMINE_API_KEY.",
             ));
         }
 
@@ -232,7 +232,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Project",
                 id_or_identifier,
-                "Use `rma project list` to see available projects.",
+                "Use `rdm project list` to see available projects.",
             ));
         }
 
@@ -295,7 +295,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Issue",
                 id.to_string(),
-                "Use `rma issue list` to find available issues.",
+                "Use `rdm issue list` to find available issues.",
             ));
         }
 
@@ -342,7 +342,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Issue",
                 id.to_string(),
-                "Use `rma issue list` to find available issues.",
+                "Use `rdm issue list` to find available issues.",
             ));
         }
 
@@ -426,7 +426,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Time entry",
                 id.to_string(),
-                "Use `rma time list` to find available time entries.",
+                "Use `rdm time list` to find available time entries.",
             ));
         }
 
@@ -473,7 +473,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Time entry",
                 id.to_string(),
-                "Use `rma time list` to find available time entries.",
+                "Use `rdm time list` to find available time entries.",
             ));
         }
 
@@ -496,7 +496,7 @@ impl RedmineClient {
             return Err(AppError::not_found_with_hint(
                 "Time entry",
                 id.to_string(),
-                "Use `rma time list` to find available time entries.",
+                "Use `rdm time list` to find available time entries.",
             ));
         }
 

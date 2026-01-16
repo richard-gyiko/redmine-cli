@@ -1,4 +1,4 @@
-//! Integration tests for the rma CLI.
+//! Integration tests for the rdm CLI.
 
 mod common;
 
@@ -7,7 +7,7 @@ use common::*;
 use predicates::prelude::*;
 
 fn get_binary() -> Command {
-    Command::cargo_bin("rma").unwrap()
+    Command::cargo_bin("rdm").unwrap()
 }
 
 // ============================================================================
@@ -307,7 +307,7 @@ fn test_version() {
 
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("rma"));
+        .stdout(predicate::str::contains("rdm"));
 }
 
 // ============================================================================

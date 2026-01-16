@@ -65,7 +65,7 @@ impl MarkdownOutput for ProfileAdded {
         if self.is_active {
             output.push_str("- **Status**: Active\n");
         }
-        output.push_str("\n*Use `rma ping` to test the connection*\n");
+        output.push_str("\n*Use `rdm ping` to test the connection*\n");
         output
     }
 }
@@ -106,7 +106,7 @@ impl MarkdownOutput for ProfileList {
 
         if self.profiles.is_empty() {
             output.push_str("*No profiles configured*\n\n");
-            output.push_str("Use `rma profile add --name <name> --url <url> --api-key <key>` to add a profile.\n");
+            output.push_str("Use `rdm profile add --name <name> --url <url> --api-key <key>` to add a profile.\n");
             return output;
         }
 

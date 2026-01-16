@@ -118,7 +118,7 @@ pub fn load_config(
     // 4. Error - no credentials found
     Err(AppError::config_with_hint(
         "No Redmine credentials configured",
-        "Set REDMINE_URL and REDMINE_API_KEY environment variables, or use `rma profile add` to create a profile.",
+        "Set REDMINE_URL and REDMINE_API_KEY environment variables, or use `rdm profile add` to create a profile.",
     ))
 }
 

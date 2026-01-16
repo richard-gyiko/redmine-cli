@@ -111,7 +111,7 @@ pub fn resolve_activity(cache: &ActivityCache, name_or_id: &str) -> Result<u32> 
     cache.resolve(name_or_id).map(|a| a.id).ok_or_else(|| {
         AppError::validation_with_hint(
             format!("Unknown activity: '{}'", name_or_id),
-            "Use `rma time activities list` to see available activities.",
+            "Use `rdm time activities list` to see available activities.",
         )
     })
 }

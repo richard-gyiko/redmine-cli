@@ -48,7 +48,7 @@ pub async fn get(client: &RedmineClient, args: &ProjectGetArgs) -> Result<Projec
     } else {
         return Err(crate::error::AppError::validation_with_hint(
             "Either --id or --identifier is required",
-            "Use `rma project get --id 1` or `rma project get --identifier my-project`",
+            "Use `rdm project get --id 1` or `rdm project get --identifier my-project`",
         ));
     };
 

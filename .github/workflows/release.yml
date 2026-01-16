@@ -17,10 +17,10 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact: rma
+            artifact: rdm
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: rma.exe
+            artifact: rdm.exe
     steps:
       - uses: actions/checkout@v4
       
@@ -39,7 +39,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rma-${{ matrix.target }}
+          name: rdm-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
 
   release:

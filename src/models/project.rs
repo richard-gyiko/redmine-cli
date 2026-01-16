@@ -90,7 +90,7 @@ impl MarkdownOutput for Project {
         }
 
         output.push_str(&format!(
-            "\n*Use `rma issue list --project {}` to see issues*\n",
+            "\n*Use `rdm issue list --project {}` to see issues*\n",
             self.identifier
         ));
 
@@ -143,7 +143,7 @@ impl MarkdownOutput for ProjectList {
 
         output.push_str(&markdown_table(headers, rows));
 
-        if let Some(hint) = pagination_hint("rma project list ", meta) {
+        if let Some(hint) = pagination_hint("rdm project list ", meta) {
             output.push('\n');
             output.push_str(&hint);
             output.push('\n');

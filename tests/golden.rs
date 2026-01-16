@@ -10,7 +10,7 @@ use common::*;
 use serde_json::Value;
 
 fn get_binary() -> Command {
-    Command::cargo_bin("rma").unwrap()
+    Command::cargo_bin("rdm").unwrap()
 }
 
 /// Helper to run a command and parse JSON output.
@@ -77,7 +77,7 @@ fn assert_paginated_meta(json: &Value) {
 }
 
 // ============================================================================
-// Golden Tests: `rma me --format json`
+// Golden Tests: `rdm me --format json`
 // ============================================================================
 
 #[tokio::test]
@@ -132,7 +132,7 @@ async fn golden_me_json_data_fields() {
 }
 
 // ============================================================================
-// Golden Tests: `rma project list --format json`
+// Golden Tests: `rdm project list --format json`
 // ============================================================================
 
 #[tokio::test]
@@ -216,7 +216,7 @@ async fn golden_project_list_json_item_fields() {
 }
 
 // ============================================================================
-// Golden Tests: `rma issue list --format json`
+// Golden Tests: `rdm issue list --format json`
 // ============================================================================
 
 #[tokio::test]
@@ -317,7 +317,7 @@ async fn golden_issue_list_json_item_fields() {
 }
 
 // ============================================================================
-// Golden Tests: `rma time list --format json`
+// Golden Tests: `rdm time list --format json`
 // ============================================================================
 
 #[tokio::test]

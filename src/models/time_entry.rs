@@ -151,7 +151,7 @@ impl MarkdownOutput for ActivityList {
 
         output.push_str(&markdown_table(headers, rows));
         output
-            .push_str("\n*Use activity name or ID with `rma time create --activity <name|id>`*\n");
+            .push_str("\n*Use activity name or ID with `rdm time create --activity <name|id>`*\n");
 
         output
     }
@@ -199,7 +199,7 @@ impl MarkdownOutput for TimeEntry {
         output.push_str(&markdown_kv_table(&pairs_ref));
 
         output.push_str(&format!(
-            "\n*Use `rma time update --id {}` to modify or `rma time delete --id {}` to remove*\n",
+            "\n*Use `rdm time update --id {}` to modify or `rdm time delete --id {}` to remove*\n",
             self.id, self.id
         ));
 
@@ -252,7 +252,7 @@ impl MarkdownOutput for TimeEntryList {
         output.push_str(&markdown_table(headers, rows));
         output.push_str(&format!("\n**Total: {:.2} hours**\n", total_hours));
 
-        if let Some(hint) = pagination_hint("rma time list ", meta) {
+        if let Some(hint) = pagination_hint("rdm time list ", meta) {
             output.push('\n');
             output.push_str(&hint);
             output.push('\n');
@@ -308,7 +308,7 @@ impl MarkdownOutput for TimeEntryCreated {
         output.push_str(&markdown_kv_table(&pairs_ref));
 
         output.push_str(&format!(
-            "\n*Use `rma time get --id {}` to view details*\n",
+            "\n*Use `rdm time get --id {}` to view details*\n",
             t.id
         ));
 

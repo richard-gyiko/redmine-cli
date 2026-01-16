@@ -1,7 +1,7 @@
 # Project Context
 
 ## Purpose
-Build a fast, modern, cross-platform CLI for Redmine (`rma`) designed primarily for LLM/agent execution with first-class support for time entry management and core issue workflows.
+Build a fast, modern, cross-platform CLI for Redmine (`rdm`) designed primarily for LLM/agent execution with first-class support for time entry management and core issue workflows.
 
 ## Tech Stack
 - Rust 2021 edition

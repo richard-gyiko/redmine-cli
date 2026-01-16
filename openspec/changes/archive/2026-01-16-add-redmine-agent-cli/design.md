@@ -62,7 +62,7 @@ Building a new CLI tool from scratch in Rust for agent/LLM automation. Must be f
 | 124 | Add dark mode | New | jane.smith | 2024-01-14 |
 | 125 | Update docs | Closed | john.doe | 2024-01-13 |
 
-*Use `rma issue list --offset 3` for next page*
+*Use `rdm issue list --offset 3` for next page*
 ```
 
 **Get command:**
@@ -81,7 +81,7 @@ Building a new CLI tool from scratch in Rust for agent/LLM automation. Must be f
 ### Description
 Users cannot log in when using SSO authentication...
 
-*Use `rma issue update --id 123 --status closed` to close*
+*Use `rdm issue update --id 123 --status closed` to close*
 ```
 
 **Create/Update confirmation:**
@@ -97,7 +97,7 @@ Users cannot log in when using SSO authentication...
 | Date | 2024-01-15 |
 | Comment | Code review |
 
-*Use `rma time get --id 456` to view details*
+*Use `rdm time get --id 456` to view details*
 ```
 
 **Error output:**
@@ -106,7 +106,7 @@ Users cannot log in when using SSO authentication...
 > Issue #99999 not found
 >
 > The issue may have been deleted or you may not have permission to view it.
-> Use `rma issue list --project <project>` to find available issues.
+> Use `rdm issue list --project <project>` to find available issues.
 ```
 
 ### JSON (--format json)
@@ -208,7 +208,7 @@ Client::builder()
     .use_rustls_tls()
     .timeout(Duration::from_secs(30))
     .connect_timeout(Duration::from_secs(10))
-    .user_agent(format!("rma/{}", env!("CARGO_PKG_VERSION")))
+    .user_agent(format!("rdm/{}", env!("CARGO_PKG_VERSION")))
     .gzip(true)
     .build()
 ```

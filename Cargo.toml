@@ -1,5 +1,5 @@
 [package]
-name = "rma"
+name = "rdm"
 version = "0.1.0"
 edition = "2021"
 description = "Agent-first Redmine CLI with markdown-first output"
@@ -7,7 +7,7 @@ license = "MIT"
 authors = []
 
 [[bin]]
-name = "rma"
+name = "rdm"
 path = "src/main.rs"
 
 [dependencies]
