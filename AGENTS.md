@@ -16,3 +16,16 @@ Use `@/openspec/AGENTS.md` to learn:
 Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
+
+## Release Checklist
+
+Before creating a new release:
+
+1. **Bump version in `Cargo.toml`** - Update the `version` field
+2. **Update `Cargo.lock`** - Run `cargo check` to regenerate
+3. **Commit and push** - `git commit -m "chore: Bump version to x.y.z"`
+4. **Create release on GitHub** - Tag should match version (e.g., `v0.1.1`)
+5. **Wait for CI** - Release workflow builds binaries and uploads to release
+6. **Update Scoop manifest** - Update `bucket/rdm.json` with:
+   - New `version` field
+   - New `hash` from `SHA256SUMS` release asset
