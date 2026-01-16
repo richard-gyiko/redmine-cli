@@ -14,6 +14,13 @@ An agent-first Redmine CLI with markdown-optimized output.
 
 ## Installation
 
+### Windows (Scoop)
+
+```powershell
+scoop bucket add rdm https://github.com/richard-gyiko/redmine-cli
+scoop install rdm
+```
+
 ### From GitHub Releases
 
 Download the latest binary for your platform from [GitHub Releases](https://github.com/richard-gyiko/redmine-cli/releases).
