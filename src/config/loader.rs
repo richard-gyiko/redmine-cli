@@ -125,7 +125,13 @@ pub fn load_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    // Mutex to serialize tests that manipulate environment variables
+    // Environment variables are process-global, so tests that set/read them
+    // must not run in parallel
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     fn test_paths(dir: &std::path::Path) -> ConfigPaths {
         ConfigPaths {
@@ -137,8 +143,13 @@ mod tests {
 
     #[test]
     fn test_cli_flags_highest_precedence() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let paths = test_paths(dir.path());
+
+        // Clear any existing env vars first
+        std::env::remove_var("REDMINE_URL");
+        std::env::remove_var("REDMINE_API_KEY");
 
         // Set env vars
         std::env::set_var("REDMINE_URL", "https://env.example.com");
@@ -157,8 +168,13 @@ mod tests {
 
     #[test]
     fn test_env_vars_over_config_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let paths = test_paths(dir.path());
+
+        // Clear any existing env vars first
+        std::env::remove_var("REDMINE_URL");
+        std::env::remove_var("REDMINE_API_KEY");
 
         // Create config file
         let mut store = ProfileStore::default();
@@ -185,6 +201,7 @@ mod tests {
 
     #[test]
     fn test_config_file_fallback() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let paths = test_paths(dir.path());
 
@@ -210,6 +227,7 @@ mod tests {
 
     #[test]
     fn test_no_config_error() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let paths = test_paths(dir.path());
 
