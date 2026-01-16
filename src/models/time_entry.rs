@@ -1,6 +1,6 @@
 //! Time entry model with activity caching.
 
-use super::project::Project;
+use super::project::ProjectRef;
 use super::user::User;
 use crate::output::{
     markdown::{markdown_kv_table, markdown_table, pagination_hint},
@@ -35,7 +35,7 @@ pub struct TimeEntry {
     #[serde(default)]
     pub user: Option<User>,
     #[serde(default)]
-    pub project: Option<Project>,
+    pub project: Option<ProjectRef>,
     #[serde(default)]
     pub issue: Option<TimeEntryIssue>,
     #[serde(default)]

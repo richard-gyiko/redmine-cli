@@ -1,6 +1,6 @@
 //! Issue model with related types.
 
-use super::project::Project;
+use super::project::ProjectRef;
 use super::user::User;
 use crate::output::{
     markdown::{markdown_kv_table, markdown_table, pagination_hint},
@@ -38,7 +38,7 @@ pub struct Issue {
     pub subject: String,
     #[serde(default)]
     pub description: Option<String>,
-    pub project: Project,
+    pub project: ProjectRef,
     #[serde(default)]
     pub tracker: Option<Tracker>,
     pub status: Status,
