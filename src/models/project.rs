@@ -6,6 +6,13 @@ use crate::output::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Minimal project reference (used in embedded responses like issues, time entries).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectRef {
+    pub id: u32,
+    pub name: String,
+}
+
 /// Project from Redmine API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
