@@ -16,26 +16,33 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
+            artifact: rdm
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: rdm
+          - os: macos-latest
+            target: aarch64-apple-darwin
             artifact: rdm
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: rdm.exe
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      
-      - name: Install musl tools (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-      
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
-      
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -46,14 +53,25 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      hash_windows: ${{ steps.hashes.outputs.windows }}
+      hash_mac_arm: ${{ steps.hashes.outputs.mac_arm }}
+      hash_mac_x64: ${{ steps.hashes.outputs.mac_x64 }}
+      hash_linux: ${{ steps.hashes.outputs.linux }}
+
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
+
       - name: Create archives
         run: |
           mkdir -p release
@@ -66,14 +84,55 @@ jobs:
               tar -czvf "../release/${target}.tar.gz" -C "$dir" .
             fi
           done
-      
+
       - name: Generate SHA256SUMS
         run: |
           cd release
           sha256sum * > SHA256SUMS
-      
+
+      - name: Extract hashes
+        id: hashes
+        run: |
+          cd release
+          echo "windows=$(grep 'windows-msvc.zip' SHA256SUMS | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          echo "mac_arm=$(grep 'aarch64-apple-darwin.tar.gz' SHA256SUMS | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          echo "mac_x64=$(grep 'x86_64-apple-darwin.tar.gz' SHA256SUMS | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          echo "linux=$(grep 'linux-gnu.tar.gz' SHA256SUMS | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: release/*
           generate_release_notes: true
+
+  update-scoop:
+    name: Update Scoop Bucket
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scoop-bucket update
+        run: |
+          gh workflow run update-manifest.yml \
+            --repo richard-gyiko/scoop-bucket \
+            --field manifest=rdm \
+            --field version=${{ needs.release.outputs.version }} \
+            --field hash=${{ needs.release.outputs.hash_windows }}
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger homebrew-tap update
+        run: |
+          gh workflow run update-formula.yml \
+            --repo richard-gyiko/homebrew-tap \
+            --field formula=rdm \
+            --field version=${{ needs.release.outputs.version }} \
+            --field sha256_mac_arm=${{ needs.release.outputs.hash_mac_arm }} \
+            --field sha256_mac_x64=${{ needs.release.outputs.hash_mac_x64 }} \
+            --field sha256_linux=${{ needs.release.outputs.hash_linux }}
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
