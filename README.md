@@ -10,20 +10,44 @@ An agent-first Redmine CLI with markdown-optimized output.
 - **Multiple profiles** - Manage credentials for different Redmine instances
 - **Activity caching** - 24-hour TTL cache for time entry activities
 - **Standardized exit codes** - Predictable error handling for scripts
-- **Cross-platform static binaries** - Linux (musl) and Windows (MSVC)
+- **Cross-platform binaries** - macOS, Linux, and Windows
 
 ## Installation
+
+### macOS / Linux (Homebrew)
+
+```bash
+brew tap richard-gyiko/tap
+brew install rdm
+```
 
 ### Windows (Scoop)
 
 ```powershell
-scoop bucket add rdm https://github.com/richard-gyiko/redmine-cli
+scoop bucket add richard-gyiko https://github.com/richard-gyiko/scoop-bucket
 scoop install rdm
 ```
 
-### From GitHub Releases
+### Manual Download
 
-Download the latest binary for your platform from [GitHub Releases](https://github.com/richard-gyiko/redmine-cli/releases).
+Download the latest release from [GitHub Releases](https://github.com/richard-gyiko/redmine-cli/releases):
+
+```bash
+# macOS (Apple Silicon)
+curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-aarch64-apple-darwin.tar.gz
+tar -xzf rdm-aarch64-apple-darwin.tar.gz
+sudo mv rdm /usr/local/bin/
+
+# macOS (Intel)
+curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-x86_64-apple-darwin.tar.gz
+tar -xzf rdm-x86_64-apple-darwin.tar.gz
+sudo mv rdm /usr/local/bin/
+
+# Linux
+curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf rdm-x86_64-unknown-linux-gnu.tar.gz
+sudo mv rdm /usr/local/bin/
+```
 
 ### From Source
 
