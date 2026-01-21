@@ -418,7 +418,11 @@ impl RedmineClient {
 
         if let Some(project_id) = project {
             // Scope search to a specific project
-            let path = format!("/projects/{}/search.json?{}", project_id, params.join("&"));
+            let path = format!(
+                "/projects/{}/search.json?{}",
+                urlencoding::encode(project_id),
+                params.join("&")
+            );
             let response = self.execute(self.request(Method::GET, &path)).await?;
             let search_results: SearchResults = Self::parse_json(response).await?;
             return self.fetch_issues_from_search(search_results).await;
@@ -454,7 +458,10 @@ impl RedmineClient {
         for id in issue_ids {
             match self.get_issue(id).await {
                 Ok(issue) => issues.push(issue),
-                Err(_) => continue, // Skip issues we can't access
+                Err(e) => {
+                    debug!("Skipping inaccessible issue #{}: {}", id, e);
+                    continue;
+                }
             }
         }
 

@@ -285,18 +285,20 @@ impl MarkdownOutput for TimeEntryList {
 
 fn truncate_comment(s: &str) -> String {
     let s = s.replace('\n', " ");
-    if s.len() <= 30 {
+    if s.chars().count() <= 30 {
         s
     } else {
-        format!("{}...", &s[..27])
+        let truncated: String = s.chars().take(27).collect();
+        format!("{}...", truncated)
     }
 }
 
 fn truncate_name(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -412,14 +414,14 @@ impl GroupByField {
     }
 
     /// Get the display name for this field.
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> String {
         match self {
-            Self::User => "User",
-            Self::Project => "Project",
-            Self::Activity => "Activity",
-            Self::Issue => "Issue",
-            Self::SpentOn => "Date",
-            Self::CustomField(_) => "Custom Field",
+            Self::User => "User".to_string(),
+            Self::Project => "Project".to_string(),
+            Self::Activity => "Activity".to_string(),
+            Self::Issue => "Issue".to_string(),
+            Self::SpentOn => "Date".to_string(),
+            Self::CustomField(id) => format!("Custom Field {}", id),
         }
     }
 }
@@ -495,7 +497,7 @@ impl GroupedTimeEntries {
             .collect();
 
         Self {
-            group_by: field.display_name().to_string(),
+            group_by: field.display_name(),
             groups,
             total_hours,
             total_count,
