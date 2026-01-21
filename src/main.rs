@@ -200,11 +200,7 @@ async fn execute_command(
                 }
                 TimeCommand::List(args) => {
                     let result = cli::time::list(client, args).await?;
-                    let meta = Meta::paginated(
-                        result.total_count.unwrap_or(0),
-                        result.limit.unwrap_or(25),
-                        result.offset.unwrap_or(0),
-                    );
+                    let meta = result.meta();
                     Ok(format.format_success(result, meta))
                 }
                 TimeCommand::Get(args) => {
@@ -218,6 +214,25 @@ async fn execute_command(
                 TimeCommand::Delete(args) => {
                     let result = cli::time::delete(client, args).await?;
                     Ok(format.format_success(result, Meta::default()))
+                }
+            }
+        }
+
+        Command::User(cmd) => {
+            use cli::user::UserCommand;
+            match cmd {
+                UserCommand::List(args) => {
+                    let result = cli::user::list(client, args).await?;
+                    let meta = Meta::paginated(
+                        result.total_count.unwrap_or(0),
+                        result.limit.unwrap_or(25),
+                        result.offset.unwrap_or(0),
+                    );
+                    Ok(format.format_success(result, meta))
+                }
+                UserCommand::Me => {
+                    let user = client.me().await?;
+                    Ok(format.format_success(user, Meta::default()))
                 }
             }
         }

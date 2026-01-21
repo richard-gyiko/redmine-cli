@@ -112,6 +112,16 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 | `rdm issue create` | Create a new issue |
 | `rdm issue update` | Update an existing issue |
 
+**Issue list filters:**
+- `--project <id>` - Filter by project
+- `--status <open|closed|*|id>` - Filter by status
+- `--assigned-to <me|id>` - Filter by assignee
+- `--author <me|id>` - Filter by author
+- `--tracker <id>` - Filter by tracker
+- `--subject <text>` - Filter by exact subject match
+- `--search <text>` - Search issues by text (subject/description)
+- `--cf <id>=<value>` - Filter by custom field (repeatable)
+
 ### Time Entries
 
 | Command | Description |
@@ -122,6 +132,24 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 | `rdm time update` | Update a time entry |
 | `rdm time delete` | Delete a time entry |
 | `rdm time activities list` | List available activities |
+
+**Time list filters:**
+- `--project <id>` - Filter by project
+- `--issue <id>` - Filter by issue
+- `--user <me|id>` - Filter by user
+- `--from <YYYY-MM-DD>` - Filter from date
+- `--to <YYYY-MM-DD>` - Filter to date
+- `--cf <id>=<value>` - Filter by custom field (repeatable)
+- `--group-by <field>` - Group results by: `user`, `project`, `activity`, `issue`, `spent_on`, or `cf_<id>`
+
+### Users
+
+| Command | Description |
+|---------|-------------|
+| `rdm user list` | List users |
+
+**User list filters:**
+- `--status <active|registered|locked>` - Filter by status
 
 ## Configuration
 
@@ -284,6 +312,30 @@ rdm time create --project 1 --hours 1.0 --activity Meeting --comment "Sprint pla
 
 ```bash
 rdm time list --user me --from 2024-01-01 --to 2024-01-31
+```
+
+### List time entries grouped by project
+
+```bash
+rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
+```
+
+### Search issues by text
+
+```bash
+rdm issue list --search "authentication error" --project backend
+```
+
+### Filter issues by custom field
+
+```bash
+rdm issue list --project backend --cf 5=urgent --cf 6=backend
+```
+
+### List users
+
+```bash
+rdm user list --status active
 ```
 
 ### Use in shell scripts

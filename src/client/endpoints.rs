@@ -198,6 +198,33 @@ impl RedmineClient {
         Ok(wrapper.user)
     }
 
+    /// List users with optional status filter.
+    pub async fn list_users(
+        &self,
+        status: Option<u32>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<crate::cli::user::UserList> {
+        if self.dry_run {
+            return Ok(crate::cli::user::UserList {
+                users: vec![],
+                total_count: Some(0),
+                offset: Some(offset),
+                limit: Some(limit),
+            });
+        }
+
+        let mut params = vec![format!("limit={}", limit), format!("offset={}", offset)];
+
+        if let Some(s) = status {
+            params.push(format!("status={}", s));
+        }
+
+        let path = format!("/users.json?{}", params.join("&"));
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        Self::parse_json(response).await
+    }
+
     // === Projects ===
 
     /// List projects.
@@ -272,6 +299,13 @@ impl RedmineClient {
         }
         if let Some(tracker) = &filters.tracker {
             params.push(format!("tracker_id={}", tracker));
+        }
+        if let Some(subject) = &filters.subject {
+            params.push(format!("subject={}", urlencoding::encode(subject)));
+        }
+        // Add custom field filters
+        for (cf_id, cf_value) in &filters.custom_fields {
+            params.push(format!("cf_{}={}", cf_id, urlencoding::encode(cf_value)));
         }
 
         let path = format!("/issues.json?{}", params.join("&"));
@@ -357,6 +391,81 @@ impl RedmineClient {
         Ok(())
     }
 
+    /// Search issues using Redmine's search endpoint.
+    /// Returns matching issues by fetching full issue data for each search result.
+    pub async fn search_issues(
+        &self,
+        query: &str,
+        project: Option<&str>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<IssueList> {
+        if self.dry_run {
+            return Ok(IssueList {
+                issues: vec![],
+                total_count: Some(0),
+                offset: Some(offset),
+                limit: Some(limit),
+            });
+        }
+
+        let params = [
+            format!("q={}", urlencoding::encode(query)),
+            "issues=1".to_string(),
+            format!("limit={}", limit),
+            format!("offset={}", offset),
+        ];
+
+        if let Some(project_id) = project {
+            // Scope search to a specific project
+            let path = format!("/projects/{}/search.json?{}", project_id, params.join("&"));
+            let response = self.execute(self.request(Method::GET, &path)).await?;
+            let search_results: SearchResults = Self::parse_json(response).await?;
+            return self.fetch_issues_from_search(search_results).await;
+        }
+
+        let path = format!("/search.json?{}", params.join("&"));
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        let search_results: SearchResults = Self::parse_json(response).await?;
+        self.fetch_issues_from_search(search_results).await
+    }
+
+    /// Fetch full issue data for search results.
+    async fn fetch_issues_from_search(&self, search_results: SearchResults) -> Result<IssueList> {
+        // Filter to only issue results and extract IDs
+        let issue_ids: Vec<u32> = search_results
+            .results
+            .iter()
+            .filter(|r| r.result_type == "issue")
+            .map(|r| r.id)
+            .collect();
+
+        if issue_ids.is_empty() {
+            return Ok(IssueList {
+                issues: vec![],
+                total_count: Some(0),
+                offset: search_results.offset,
+                limit: search_results.limit,
+            });
+        }
+
+        // Fetch full issue data for each result
+        let mut issues = Vec::new();
+        for id in issue_ids {
+            match self.get_issue(id).await {
+                Ok(issue) => issues.push(issue),
+                Err(_) => continue, // Skip issues we can't access
+            }
+        }
+
+        Ok(IssueList {
+            issues,
+            total_count: search_results.total_count,
+            offset: search_results.offset,
+            limit: search_results.limit,
+        })
+    }
+
     // === Time Entries ===
 
     /// List time entry activities.
@@ -403,6 +512,10 @@ impl RedmineClient {
         }
         if let Some(to) = &filters.to {
             params.push(format!("to={}", to));
+        }
+        // Add custom field filters
+        for (cf_id, cf_value) in &filters.custom_fields {
+            params.push(format!("cf_{}={}", cf_id, urlencoding::encode(cf_value)));
         }
 
         let path = format!("/time_entries.json?{}", params.join("&"));
@@ -536,6 +649,8 @@ pub struct IssueFilters {
     pub assigned_to: Option<String>,
     pub author: Option<String>,
     pub tracker: Option<String>,
+    pub subject: Option<String>,
+    pub custom_fields: Vec<(u32, String)>,
     pub limit: u32,
     pub offset: u32,
 }
@@ -559,6 +674,7 @@ pub struct TimeEntryFilters {
     pub user: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
+    pub custom_fields: Vec<(u32, String)>,
     pub limit: u32,
     pub offset: u32,
 }

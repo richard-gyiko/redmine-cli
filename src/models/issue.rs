@@ -1,5 +1,6 @@
 //! Issue model with related types.
 
+use super::custom_field::CustomField;
 use super::project::ProjectRef;
 use super::user::User;
 use crate::output::{
@@ -61,6 +62,8 @@ pub struct Issue {
     pub created_on: Option<String>,
     #[serde(default)]
     pub updated_on: Option<String>,
+    #[serde(default)]
+    pub custom_fields: Option<Vec<CustomField>>,
 }
 
 /// List of issues from API.
@@ -199,6 +202,18 @@ impl MarkdownOutput for Issue {
         let pairs_ref: Vec<(&str, String)> = pairs.iter().map(|(k, v)| (*k, v.clone())).collect();
         output.push_str(&markdown_kv_table(&pairs_ref));
 
+        // Display custom fields if present
+        if let Some(custom_fields) = &self.custom_fields {
+            if !custom_fields.is_empty() {
+                output.push_str("\n### Custom Fields\n\n");
+                let cf_pairs: Vec<(&str, String)> = custom_fields
+                    .iter()
+                    .map(|cf| (cf.name.as_str(), cf.display_value()))
+                    .collect();
+                output.push_str(&markdown_kv_table(&cf_pairs));
+            }
+        }
+
         if let Some(desc) = &self.description {
             if !desc.is_empty() {
                 output.push_str("\n### Description\n\n");
@@ -273,4 +288,30 @@ fn truncate(s: &str, max_len: usize) -> String {
     } else {
         format!("{}...", &s[..max_len - 3])
     }
+}
+
+/// Search result from Redmine search API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub id: u32,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub result_type: String,
+    pub url: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub datetime: Option<String>,
+}
+
+/// Search results response from API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResults {
+    pub results: Vec<SearchResult>,
+    #[serde(default)]
+    pub total_count: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
+    #[serde(default)]
+    pub limit: Option<u32>,
 }

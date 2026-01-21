@@ -3,6 +3,7 @@
 use clap::{Args, Subcommand};
 use serde::Serialize;
 
+use super::parse_custom_fields;
 use crate::client::{endpoints::IssueFilters, RedmineClient};
 use crate::error::Result;
 use crate::models::{Issue, IssueList, NewIssue, UpdateIssue};
@@ -37,6 +38,15 @@ pub struct IssueListArgs {
     /// Filter by tracker ID.
     #[arg(long)]
     pub tracker: Option<String>,
+    /// Filter by exact subject match.
+    #[arg(long)]
+    pub subject: Option<String>,
+    /// Search issues by text (searches subject and description).
+    #[arg(long)]
+    pub search: Option<String>,
+    /// Filter by custom field value (format: id=value, repeatable).
+    #[arg(long = "cf", value_name = "ID=VALUE")]
+    pub custom_fields: Vec<String>,
     /// Maximum number of results.
     #[arg(long, default_value = "25")]
     pub limit: u32,
@@ -159,15 +169,28 @@ impl MarkdownOutput for IssueUpdated {
 
 /// Execute issue list command.
 pub async fn list(client: &RedmineClient, args: &IssueListArgs) -> Result<IssueList> {
+    // Parse custom field filters
+    let custom_fields = parse_custom_fields(&args.custom_fields)?;
+
     let filters = IssueFilters {
         project: args.project.clone(),
         status: args.status.clone(),
         assigned_to: args.assigned_to.clone(),
         author: args.author.clone(),
         tracker: args.tracker.clone(),
+        subject: args.subject.clone(),
+        custom_fields,
         limit: args.limit,
         offset: args.offset,
     };
+
+    // If search is specified, use search endpoint instead
+    if let Some(query) = &args.search {
+        return client
+            .search_issues(query, args.project.as_deref(), args.limit, args.offset)
+            .await;
+    }
+
     client.list_issues(filters).await
 }
 
