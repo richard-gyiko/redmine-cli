@@ -5,9 +5,33 @@ pub mod ping;
 pub mod profile;
 pub mod project;
 pub mod time;
+pub mod user;
 
+use crate::error::{AppError, Result};
 use crate::output::OutputFormat;
 use clap::{Parser, Subcommand};
+
+/// Parse custom field arguments in format "id=value".
+pub fn parse_custom_fields(args: &[String]) -> Result<Vec<(u32, String)>> {
+    let mut result = Vec::new();
+    for arg in args {
+        let parts: Vec<&str> = arg.splitn(2, '=').collect();
+        if parts.len() != 2 {
+            return Err(AppError::validation_with_hint(
+                format!("Invalid custom field format: '{}'", arg),
+                "Use format: --cf 5=value",
+            ));
+        }
+        let id: u32 = parts[0].parse().map_err(|_| {
+            AppError::validation_with_hint(
+                format!("Invalid custom field ID: '{}'", parts[0]),
+                "Custom field ID must be a number, e.g., --cf 5=value",
+            )
+        })?;
+        result.push((id, parts[1].to_string()));
+    }
+    Ok(result)
+}
 
 /// Agent-first Redmine CLI with markdown-first output.
 #[derive(Debug, Parser)]
@@ -69,4 +93,8 @@ pub enum Command {
     /// Time entry commands.
     #[command(subcommand)]
     Time(time::TimeCommand),
+
+    /// User commands.
+    #[command(subcommand)]
+    User(user::UserCommand),
 }

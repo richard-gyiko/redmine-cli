@@ -1,5 +1,6 @@
 //! Time entry model with activity caching.
 
+use super::custom_field::CustomField;
 use super::project::ProjectRef;
 use super::user::User;
 use crate::output::{
@@ -42,6 +43,8 @@ pub struct TimeEntry {
     pub created_on: Option<String>,
     #[serde(default)]
     pub updated_on: Option<String>,
+    #[serde(default)]
+    pub custom_fields: Option<Vec<CustomField>>,
 }
 
 /// Simplified issue reference in time entries.
@@ -198,6 +201,18 @@ impl MarkdownOutput for TimeEntry {
         let pairs_ref: Vec<(&str, String)> = pairs.iter().map(|(k, v)| (*k, v.clone())).collect();
         output.push_str(&markdown_kv_table(&pairs_ref));
 
+        // Display custom fields if present
+        if let Some(custom_fields) = &self.custom_fields {
+            if !custom_fields.is_empty() {
+                output.push_str("\n### Custom Fields\n\n");
+                let cf_pairs: Vec<(&str, String)> = custom_fields
+                    .iter()
+                    .map(|cf| (cf.name.as_str(), cf.display_value()))
+                    .collect();
+                output.push_str(&markdown_kv_table(&cf_pairs));
+            }
+        }
+
         output.push_str(&format!(
             "\n*Use `rdm time update --id {}` to modify or `rdm time delete --id {}` to remove*\n",
             self.id, self.id
@@ -230,7 +245,9 @@ impl MarkdownOutput for TimeEntryList {
         // Calculate total hours
         let total_hours: f64 = self.time_entries.iter().map(|t| t.hours).sum();
 
-        let headers = &["ID", "Date", "Hours", "Activity", "Issue", "Comment"];
+        let headers = &[
+            "ID", "Date", "Hours", "User", "Activity", "Issue", "Comment",
+        ];
         let rows: Vec<Vec<String>> = self
             .time_entries
             .iter()
@@ -239,6 +256,10 @@ impl MarkdownOutput for TimeEntryList {
                     t.id.to_string(),
                     t.spent_on.clone(),
                     format!("{:.2}", t.hours),
+                    t.user
+                        .as_ref()
+                        .map(|u| truncate_name(&u.name, 15))
+                        .unwrap_or_else(|| "-".to_string()),
                     t.activity.name.clone(),
                     t.issue
                         .as_ref()
@@ -264,10 +285,20 @@ impl MarkdownOutput for TimeEntryList {
 
 fn truncate_comment(s: &str) -> String {
     let s = s.replace('\n', " ");
-    if s.len() <= 30 {
+    if s.chars().count() <= 30 {
         s
     } else {
-        format!("{}...", &s[..27])
+        let truncated: String = s.chars().take(27).collect();
+        format!("{}...", truncated)
+    }
+}
+
+fn truncate_name(s: &str, max_len: usize) -> String {
+    if s.chars().count() <= max_len {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -354,5 +385,176 @@ impl MarkdownOutput for TimeEntryDeleted {
             "## Time Entry Deleted\n\nTime entry #{} has been deleted.\n",
             self.id
         )
+    }
+}
+
+/// Field to group time entries by.
+#[derive(Debug, Clone)]
+pub enum GroupByField {
+    User,
+    Project,
+    Activity,
+    Issue,
+    SpentOn,
+    CustomField(u32),
+}
+
+impl GroupByField {
+    /// Parse a group-by field from string.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "user" => Some(Self::User),
+            "project" => Some(Self::Project),
+            "activity" => Some(Self::Activity),
+            "issue" => Some(Self::Issue),
+            "spent_on" | "date" => Some(Self::SpentOn),
+            _ if s.starts_with("cf_") => s[3..].parse().ok().map(Self::CustomField),
+            _ => None,
+        }
+    }
+
+    /// Get the display name for this field.
+    pub fn display_name(&self) -> String {
+        match self {
+            Self::User => "User".to_string(),
+            Self::Project => "Project".to_string(),
+            Self::Activity => "Activity".to_string(),
+            Self::Issue => "Issue".to_string(),
+            Self::SpentOn => "Date".to_string(),
+            Self::CustomField(id) => format!("Custom Field {}", id),
+        }
+    }
+}
+
+/// A group of time entries with a name and subtotal.
+#[derive(Debug, Clone, Serialize)]
+pub struct TimeEntryGroup {
+    pub name: String,
+    pub entries: Vec<TimeEntry>,
+    pub subtotal: f64,
+}
+
+/// Grouped time entries for display.
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupedTimeEntries {
+    pub group_by: String,
+    pub groups: Vec<TimeEntryGroup>,
+    pub total_hours: f64,
+    pub total_count: u32,
+}
+
+impl GroupedTimeEntries {
+    /// Create grouped time entries from a list.
+    pub fn from_entries(entries: Vec<TimeEntry>, field: &GroupByField) -> Self {
+        use std::collections::BTreeMap;
+
+        let mut groups_map: BTreeMap<String, Vec<TimeEntry>> = BTreeMap::new();
+
+        for entry in entries {
+            let key = match field {
+                GroupByField::User => entry
+                    .user
+                    .as_ref()
+                    .map(|u| u.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                GroupByField::Project => entry
+                    .project
+                    .as_ref()
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                GroupByField::Activity => entry.activity.name.clone(),
+                GroupByField::Issue => entry
+                    .issue
+                    .as_ref()
+                    .map(|i| format!("#{}", i.id))
+                    .unwrap_or_else(|| "No Issue".to_string()),
+                GroupByField::SpentOn => entry.spent_on.clone(),
+                GroupByField::CustomField(cf_id) => entry
+                    .custom_fields
+                    .as_ref()
+                    .and_then(|cfs| cfs.iter().find(|cf| cf.id == *cf_id))
+                    .map(|cf| cf.display_value())
+                    .unwrap_or_else(|| "-".to_string()),
+            };
+
+            groups_map.entry(key).or_default().push(entry);
+        }
+
+        let mut total_hours = 0.0;
+        let mut total_count = 0u32;
+        let groups: Vec<TimeEntryGroup> = groups_map
+            .into_iter()
+            .map(|(name, entries)| {
+                let subtotal: f64 = entries.iter().map(|e| e.hours).sum();
+                total_hours += subtotal;
+                total_count += entries.len() as u32;
+                TimeEntryGroup {
+                    name,
+                    entries,
+                    subtotal,
+                }
+            })
+            .collect();
+
+        Self {
+            group_by: field.display_name(),
+            groups,
+            total_hours,
+            total_count,
+        }
+    }
+}
+
+impl MarkdownOutput for GroupedTimeEntries {
+    fn to_markdown(&self, _meta: &Meta) -> String {
+        let mut output = String::new();
+        output.push_str(&format!(
+            "## Time Entries by {} ({} entries)\n\n",
+            self.group_by, self.total_count
+        ));
+
+        if self.groups.is_empty() {
+            output.push_str("*No time entries found*\n");
+            return output;
+        }
+
+        for group in &self.groups {
+            output.push_str(&format!(
+                "### {} ({:.2} hours)\n\n",
+                group.name, group.subtotal
+            ));
+
+            let headers = &[
+                "ID", "Date", "Hours", "User", "Activity", "Issue", "Comment",
+            ];
+            let rows: Vec<Vec<String>> = group
+                .entries
+                .iter()
+                .map(|t| {
+                    vec![
+                        t.id.to_string(),
+                        t.spent_on.clone(),
+                        format!("{:.2}", t.hours),
+                        t.user
+                            .as_ref()
+                            .map(|u| truncate_name(&u.name, 15))
+                            .unwrap_or_else(|| "-".to_string()),
+                        t.activity.name.clone(),
+                        t.issue
+                            .as_ref()
+                            .map(|i| format!("#{}", i.id))
+                            .unwrap_or_else(|| "-".to_string()),
+                        truncate_comment(t.comments.as_deref().unwrap_or("-")),
+                    ]
+                })
+                .collect();
+
+            output.push_str(&markdown_table(headers, rows));
+            output.push('\n');
+        }
+
+        output.push_str(&format!("**Grand Total: {:.2} hours**\n", self.total_hours));
+
+        output
     }
 }

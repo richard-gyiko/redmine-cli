@@ -2,15 +2,18 @@
 
 use chrono::Local;
 use clap::{Args, Subcommand};
+use serde::Serialize;
 
+use super::parse_custom_fields;
 use crate::cache::{resolve_activity, ActivityCache};
 use crate::client::{endpoints::TimeEntryFilters, RedmineClient};
 use crate::config::ConfigPaths;
 use crate::error::{AppError, Result};
 use crate::models::{
-    ActivityList, NewTimeEntry, TimeEntry, TimeEntryCreated, TimeEntryDeleted, TimeEntryList,
-    TimeEntryUpdated, UpdateTimeEntry,
+    ActivityList, GroupByField, GroupedTimeEntries, NewTimeEntry, TimeEntry, TimeEntryCreated,
+    TimeEntryDeleted, TimeEntryList, TimeEntryUpdated, UpdateTimeEntry,
 };
+use crate::output::{MarkdownOutput, Meta};
 
 #[derive(Debug, Subcommand)]
 pub enum TimeCommand {
@@ -84,6 +87,12 @@ pub struct TimeListArgs {
     /// Filter to date (YYYY-MM-DD).
     #[arg(long)]
     pub to: Option<String>,
+    /// Filter by custom field value (format: id=value, repeatable).
+    #[arg(long = "cf", value_name = "ID=VALUE")]
+    pub custom_fields: Vec<String>,
+    /// Group results by field (user, project, activity, issue, spent_on, or cf_<id>).
+    #[arg(long)]
+    pub group_by: Option<String>,
     /// Maximum number of results.
     #[arg(long, default_value = "25")]
     pub limit: u32,
@@ -222,17 +231,67 @@ pub async fn create(
 }
 
 /// Execute time list command.
-pub async fn list(client: &RedmineClient, args: &TimeListArgs) -> Result<TimeEntryList> {
+pub async fn list(client: &RedmineClient, args: &TimeListArgs) -> Result<TimeListResult> {
+    // Parse custom field filters
+    let custom_fields = parse_custom_fields(&args.custom_fields)?;
+
     let filters = TimeEntryFilters {
         project: args.project.clone(),
         issue: args.issue,
         user: args.user.clone(),
         from: args.from.clone(),
         to: args.to.clone(),
+        custom_fields,
         limit: args.limit,
         offset: args.offset,
     };
-    client.list_time_entries(filters).await
+    let entries = client.list_time_entries(filters).await?;
+
+    // If grouping is requested, group the results
+    if let Some(group_by_str) = &args.group_by {
+        let group_by = GroupByField::parse(group_by_str).ok_or_else(|| {
+            AppError::validation_with_hint(
+                format!("Invalid group-by field: '{}'", group_by_str),
+                "Valid values: user, project, activity, issue, spent_on, cf_<id>",
+            )
+        })?;
+
+        let grouped = GroupedTimeEntries::from_entries(entries.time_entries, &group_by);
+        return Ok(TimeListResult::Grouped(grouped));
+    }
+
+    Ok(TimeListResult::List(entries))
+}
+
+/// Result of time list command - either grouped or ungrouped.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum TimeListResult {
+    List(TimeEntryList),
+    Grouped(GroupedTimeEntries),
+}
+
+impl TimeListResult {
+    /// Get pagination metadata.
+    pub fn meta(&self) -> Meta {
+        match self {
+            TimeListResult::List(list) => Meta::paginated(
+                list.total_count.unwrap_or(0),
+                list.limit.unwrap_or(25),
+                list.offset.unwrap_or(0),
+            ),
+            TimeListResult::Grouped(grouped) => Meta::paginated(grouped.total_count, 0, 0),
+        }
+    }
+}
+
+impl MarkdownOutput for TimeListResult {
+    fn to_markdown(&self, meta: &Meta) -> String {
+        match self {
+            TimeListResult::List(list) => list.to_markdown(meta),
+            TimeListResult::Grouped(grouped) => grouped.to_markdown(meta),
+        }
+    }
 }
 
 /// Execute time get command.
