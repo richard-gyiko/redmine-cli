@@ -314,10 +314,26 @@ rdm issue create \
   --assigned-to 5
 ```
 
+### Create an issue with custom fields
+
+```bash
+rdm issue create \
+  --project 1 \
+  --subject "High priority task" \
+  --cf 5=urgent \
+  --cf 6=backend
+```
+
 ### Update an issue
 
 ```bash
 rdm issue update --id 123 --status 3 --done-ratio 50 --notes "Halfway done"
+```
+
+### Update an issue with custom fields
+
+```bash
+rdm issue update --id 123 --cf 5=normal --cf 7="Q2 2024"
 ```
 
 ### Log time to an issue

@@ -6,7 +6,7 @@ use serde::Serialize;
 use super::parse_custom_fields;
 use crate::client::{endpoints::IssueFilters, RedmineClient};
 use crate::error::Result;
-use crate::models::{Issue, IssueList, NewIssue, UpdateIssue};
+use crate::models::{CustomFieldValue, Issue, IssueList, NewIssue, UpdateIssue};
 use crate::output::{markdown::markdown_kv_table, MarkdownOutput, Meta};
 
 #[derive(Debug, Subcommand)]
@@ -94,6 +94,9 @@ pub struct IssueCreateArgs {
     /// Estimated hours.
     #[arg(long)]
     pub estimated_hours: Option<f64>,
+    /// Set custom field value (format: id=value, repeatable).
+    #[arg(long = "cf", value_name = "ID=VALUE")]
+    pub custom_fields: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -122,6 +125,9 @@ pub struct IssueUpdateArgs {
     /// Add a note/comment.
     #[arg(long)]
     pub notes: Option<String>,
+    /// Set custom field value (format: id=value, repeatable).
+    #[arg(long = "cf", value_name = "ID=VALUE")]
+    pub custom_fields: Vec<String>,
 }
 
 /// Result of issue creation.
@@ -201,6 +207,14 @@ pub async fn get(client: &RedmineClient, args: &IssueGetArgs) -> Result<Issue> {
 
 /// Execute issue create command.
 pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<IssueCreated> {
+    // Parse custom fields if provided
+    let custom_fields = if args.custom_fields.is_empty() {
+        None
+    } else {
+        let parsed = parse_custom_fields(&args.custom_fields)?;
+        Some(CustomFieldValue::from_tuples(parsed))
+    };
+
     let issue = NewIssue {
         project_id: args.project,
         subject: args.subject.clone(),
@@ -212,6 +226,7 @@ pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<Is
         start_date: args.start_date.clone(),
         due_date: args.due_date.clone(),
         estimated_hours: args.estimated_hours,
+        custom_fields,
     };
 
     let created = client.create_issue(issue).await?;
@@ -220,6 +235,14 @@ pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<Is
 
 /// Execute issue update command.
 pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<IssueUpdated> {
+    // Parse custom fields if provided
+    let custom_fields = if args.custom_fields.is_empty() {
+        None
+    } else {
+        let parsed = parse_custom_fields(&args.custom_fields)?;
+        Some(CustomFieldValue::from_tuples(parsed))
+    };
+
     let update = UpdateIssue {
         subject: args.subject.clone(),
         description: args.description.clone(),
@@ -228,6 +251,7 @@ pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<Is
         assigned_to_id: args.assigned_to,
         done_ratio: args.done_ratio,
         notes: args.notes.clone(),
+        custom_fields,
         ..Default::default()
     };
 

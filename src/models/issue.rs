@@ -1,6 +1,6 @@
 //! Issue model with related types.
 
-use super::custom_field::CustomField;
+use super::custom_field::{CustomField, CustomFieldValue};
 use super::project::ProjectRef;
 use super::user::User;
 use crate::output::{
@@ -105,6 +105,9 @@ pub struct NewIssue {
     pub due_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub estimated_hours: Option<f64>,
+    /// Custom field values for the issue.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_fields: Option<Vec<CustomFieldValue>>,
 }
 
 /// Wrapper for issue creation request.
@@ -138,6 +141,9 @@ pub struct UpdateIssue {
     pub done_ratio: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Custom field values to update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_fields: Option<Vec<CustomFieldValue>>,
 }
 
 /// Wrapper for issue update request.
