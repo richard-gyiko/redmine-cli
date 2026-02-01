@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Custom field value from Redmine API.
+/// Custom field value from Redmine API (response format).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomField {
     pub id: u32,
@@ -13,6 +13,29 @@ pub struct CustomField {
     /// Whether this is a multi-value field.
     #[serde(default)]
     pub multiple: Option<bool>,
+}
+
+/// Custom field value for API requests (write format).
+/// Redmine expects: `{ "id": 5, "value": "some value" }`
+#[derive(Debug, Clone, Serialize)]
+pub struct CustomFieldValue {
+    pub id: u32,
+    pub value: String,
+}
+
+impl CustomFieldValue {
+    /// Create a new custom field value from parsed (id, value) tuple.
+    pub fn new(id: u32, value: String) -> Self {
+        Self { id, value }
+    }
+
+    /// Convert a list of (id, value) tuples to CustomFieldValue vec.
+    pub fn from_tuples(tuples: Vec<(u32, String)>) -> Vec<Self> {
+        tuples
+            .into_iter()
+            .map(|(id, value)| Self::new(id, value))
+            .collect()
+    }
 }
 
 impl CustomField {

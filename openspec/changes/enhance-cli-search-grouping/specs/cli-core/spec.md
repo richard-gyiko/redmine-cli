@@ -158,3 +158,11 @@ The CLI SHALL provide issue commands:
 #### Scenario: Update issue with notes
 - **WHEN** `rdm issue update --id 123 --status closed --notes "Fixed in commit abc"` is executed
 - **THEN** the issue is updated and the response confirms the changes
+
+#### Scenario: Create issue with custom fields
+- **WHEN** `rdm issue create --project myproject --subject "New task" --cf 5=urgent --cf 6=backend` is executed
+- **THEN** a new issue is created with the specified custom field values
+
+#### Scenario: Update issue with custom fields
+- **WHEN** `rdm issue update --id 123 --cf 5=normal` is executed
+- **THEN** the issue's custom field is updated to the new value

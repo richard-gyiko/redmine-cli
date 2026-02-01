@@ -39,11 +39,22 @@
 - [x] 5.4 Create `UserList` model with markdown output
 - [x] 5.5 Register `user` subcommand in main CLI
 
-## 6. Testing
-- [x] 6.1 Unit tests pass (32 tests)
-- [x] 6.2 Golden tests pass (19/20 - 1 pre-existing failure unrelated to this change)
-- [x] 6.3 Build succeeds with only unused import warnings (for public API exports)
+## 6. Custom Fields in Issue Create/Update
+- [x] 6.1 Add `--cf <id>=<value>` argument to `IssueCreateArgs` (repeatable)
+- [x] 6.2 Add `custom_fields` field to `NewIssue` struct with proper serialization
+- [x] 6.3 Parse and pass custom fields in `issue::create()` handler
+- [x] 6.4 Add `--cf <id>=<value>` argument to `IssueUpdateArgs` (repeatable)
+- [x] 6.5 Add `custom_fields` field to `UpdateIssue` struct with proper serialization
+- [x] 6.6 Parse and pass custom fields in `issue::update()` handler
 
-## 7. Documentation
-- [x] 7.1 Update README with new commands and options
-- [x] 7.2 Add examples for common search and grouping use cases
+## 7. Testing
+- [x] 7.1 Unit tests pass (32 tests)
+- [x] 7.2 Golden tests pass (19/20 - 1 pre-existing failure unrelated to this change)
+- [x] 7.3 Build succeeds with only unused import warnings (for public API exports)
+- [x] 7.4 Test `rdm issue create --project X --subject "test" --cf 1=value` works
+- [x] 7.5 Test `rdm issue update --id X --cf 1=newvalue` works
+
+## 8. Documentation
+- [x] 8.1 Update README with new commands and options
+- [x] 8.2 Add examples for common search and grouping use cases
+- [x] 8.3 Add documentation for custom fields in create/update commands
