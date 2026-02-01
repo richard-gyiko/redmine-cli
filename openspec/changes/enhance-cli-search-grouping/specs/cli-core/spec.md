@@ -160,7 +160,7 @@ The CLI SHALL provide issue commands:
 - **THEN** the issue is updated and the response confirms the changes
 
 #### Scenario: Create issue with custom fields
-- **WHEN** `rdm issue create --project myproject --subject "New task" --cf 5=urgent --cf 6=backend` is executed
+- **WHEN** `rdm issue create --project 1 --subject "New task" --cf 5=urgent --cf 6=backend` is executed
 - **THEN** a new issue is created with the specified custom field values
 
 #### Scenario: Update issue with custom fields

@@ -173,6 +173,16 @@ impl MarkdownOutput for IssueUpdated {
     }
 }
 
+/// Parse custom field arguments into CustomFieldValue vec, or None if empty.
+fn parse_custom_field_values(args: &[String]) -> Result<Option<Vec<CustomFieldValue>>> {
+    if args.is_empty() {
+        Ok(None)
+    } else {
+        let parsed = parse_custom_fields(args)?;
+        Ok(Some(CustomFieldValue::from_tuples(parsed)))
+    }
+}
+
 /// Execute issue list command.
 pub async fn list(client: &RedmineClient, args: &IssueListArgs) -> Result<IssueList> {
     // Parse custom field filters
@@ -207,13 +217,7 @@ pub async fn get(client: &RedmineClient, args: &IssueGetArgs) -> Result<Issue> {
 
 /// Execute issue create command.
 pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<IssueCreated> {
-    // Parse custom fields if provided
-    let custom_fields = if args.custom_fields.is_empty() {
-        None
-    } else {
-        let parsed = parse_custom_fields(&args.custom_fields)?;
-        Some(CustomFieldValue::from_tuples(parsed))
-    };
+    let custom_fields = parse_custom_field_values(&args.custom_fields)?;
 
     let issue = NewIssue {
         project_id: args.project,
@@ -235,13 +239,7 @@ pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<Is
 
 /// Execute issue update command.
 pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<IssueUpdated> {
-    // Parse custom fields if provided
-    let custom_fields = if args.custom_fields.is_empty() {
-        None
-    } else {
-        let parsed = parse_custom_fields(&args.custom_fields)?;
-        Some(CustomFieldValue::from_tuples(parsed))
-    };
+    let custom_fields = parse_custom_field_values(&args.custom_fields)?;
 
     let update = UpdateIssue {
         subject: args.subject.clone(),

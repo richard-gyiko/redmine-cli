@@ -8,8 +8,7 @@ mod user;
 
 // Re-export for public API (may not be used internally but available for consumers)
 #[allow(unused_imports)]
-pub use custom_field::CustomField;
-pub use custom_field::CustomFieldValue;
+pub use custom_field::{CustomField, CustomFieldValue};
 pub use issue::{
     Issue, IssueList, IssueResponse, NewIssue, NewIssueRequest, UpdateIssue, UpdateIssueRequest,
 };

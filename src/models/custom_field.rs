@@ -17,6 +17,9 @@ pub struct CustomField {
 
 /// Custom field value for API requests (write format).
 /// Redmine expects: `{ "id": 5, "value": "some value" }`
+///
+/// Note: This currently only supports string values. Multi-value custom fields
+/// (arrays) are not yet supported via the CLI.
 #[derive(Debug, Clone, Serialize)]
 pub struct CustomFieldValue {
     pub id: u32,
