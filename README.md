@@ -11,6 +11,7 @@ An agent-first Redmine CLI with markdown-optimized output.
 - **Activity caching** - 24-hour TTL cache for time entry activities
 - **Standardized exit codes** - Predictable error handling for scripts
 - **Cross-platform binaries** - macOS, Linux, and Windows
+- **Installable agent skill** - Includes a reusable `redmine-cli-workflows` skill for agent-driven Redmine tasks
 
 ## Installation
 
@@ -59,6 +60,18 @@ cd redmine-cli
 # Install with cargo
 cargo install --path .
 ```
+
+## Agent Skill
+
+This repository also includes the `redmine-cli-workflows` skill for agent environments that support installable skills.
+
+Install it with:
+
+```bash
+npx skills add https://github.com/richard-gyiko/redmine-cli/ --skill redmine-cli-workflows
+```
+
+The skill helps agents choose the right `rdm` commands for common Redmine workflows such as connectivity checks, issue lookup and updates, time logging, reporting, and custom-field handling.
 
 ## Quick Start
 
