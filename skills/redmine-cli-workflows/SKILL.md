@@ -1,94 +1,92 @@
 ---
 name: redmine-cli-workflows
-description: Use this skill whenever the user wants to interact with Redmine through this repository's `rdm` CLI, especially for listing or updating issues, logging time, searching Redmine data, working with profiles, using JSON output in agent pipelines, or handling Redmine custom fields. Consult this skill even if the user only says "use the CLI" or "update Redmine" without naming the exact command.
+description: Use this skill when a task requires operational access to Redmine through the local `rdm` CLI, such as checking connectivity, reviewing or updating issues, logging or analyzing time entries, resolving project or user IDs, or working with Redmine custom fields, even if the user does not explicitly mention Redmine or the CLI.
 ---
 
 # Redmine CLI Workflows
 
-Use this skill to interact efficiently with Redmine through the `rdm` CLI in this repository.
+Use `rdm` when the user needs Redmine operations and the local CLI is available.
 
-This skill is optimized for agent use:
-- Prefer `rdm` over manual API calls when the user's goal fits the CLI.
-- Prefer small discovery commands before mutating commands.
-- Prefer machine-readable output with `--format json` when you need to inspect fields, chain commands, or make follow-up decisions.
-- Prefer markdown output when the goal is a human-readable summary.
+## Overview
 
-This skill is based on the repository README. If the CLI behavior appears different in the local environment, trust `rdm --help` and the local docs over assumptions.
+Default approach:
 
-## What the CLI covers
+1. Verify `rdm` exists and auth is usable.
+2. Discover IDs and valid values before mutating.
+3. Use `--format json` when the result will drive follow-up decisions.
+4. Prefer readback after mutations when confirmation matters.
 
-The README documents these command groups:
+Fast checks:
+
+```bash
+rdm --version
+rdm --help
+rdm ping
+rdm me
+```
+
+On PowerShell, if the binary may be missing:
+
+```powershell
+Get-Command rdm
+```
+
+If `rdm` is unavailable, stop and say so unless the user explicitly wants install help.
+
+## When to Use
+
+Use this skill when the user needs any of these:
+
+- confirm Redmine connectivity or auth
+- inspect current user or active config
+- list, get, create, or update issues
+- list, get, create, update, delete, or group time entries
+- resolve project or user IDs before a write
+- work with custom-field filters or values
+
+Do not rely on this skill alone when:
+
+- the local binary behavior differs from the skill
+- the user asks for a flag or subcommand not covered here
+- exact JSON field names matter and you have not inspected live output yet
+
+Then verify with local help:
+
+```bash
+rdm --help
+rdm issue --help
+rdm time --help
+```
+
+## Quick Reference
+
+Core command groups:
 
 - General: `ping`, `me`, `config`
 - Profiles: `profile add`, `profile use`, `profile list`, `profile delete`
 - Projects: `project list`, `project get`
 - Issues: `issue list`, `issue get`, `issue create`, `issue update`
-- Time entries: `time list`, `time get`, `time create`, `time update`, `time delete`, `time activities list`
+- Time: `time list`, `time get`, `time create`, `time update`, `time delete`, `time activities list`
 - Users: `user list`, `user me`
 
-## Core operating style
+Configuration precedence:
 
-Follow this pattern unless the user asks for something more direct:
+1. `--url`, `--api-key`
+2. `REDMINE_URL`, `REDMINE_API_KEY`
+3. active profile in config
 
-1. Verify auth and target instance.
-2. Discover the exact Redmine objects you need.
-3. Perform the mutation only after IDs and field values are clear.
-4. Read back the result if confirmation matters.
-
-Good defaults:
-
-- Start with `rdm ping` when setup is uncertain.
-- Use `rdm config` to understand which credentials source is active.
-- Use `rdm me` to confirm the acting user.
-- Use `--format json` for agent decisions.
-- Use `--dry-run` before create or update operations when the user wants validation or a preview.
-
-## Authentication and configuration
-
-The README documents this precedence order:
-
-1. CLI flags: `--url`, `--api-key`
-2. Environment variables: `REDMINE_URL`, `REDMINE_API_KEY`
-3. Active profile in config
-
-Use these setup paths:
-
-```bash
-rdm profile add --name work --url https://redmine.example.com --api-key your-api-key
-rdm profile use work
-rdm ping
-rdm me
-```
-
-If setup is temporary or one-off, prefer CLI flags or environment variables instead of editing profiles.
-
-## Output strategy
-
-Use markdown by default for quick summaries:
+Use markdown by default for human summaries. Use JSON for selection, branching, pagination, or pipelines.
 
 ```bash
 rdm issue get --id 123
-```
-
-Use JSON when:
-
-- you need stable fields
-- you need pagination metadata
-- you need to branch on command output
-- you want scriptable pipelines
-
-```bash
 rdm issue get --id 123 --format json
-rdm issue list --assigned-to me --status open --format json
 ```
 
-JSON responses use a consistent envelope with `ok`, `data`, and `meta`, and error responses include `error`.
+JSON responses use `ok`, `data`, and `meta`. Errors use `error`.
 
-## Discovery workflows
+## Common Workflows
 
-Use the cheapest discovery command that narrows the target.
-
-### Confirm identity and instance
+### Verify setup
 
 ```bash
 rdm ping
@@ -96,68 +94,44 @@ rdm me
 rdm config
 ```
 
-### Find projects
+### Configure a profile
+
+```bash
+rdm profile add --name work --url https://redmine.example.com --api-key your-api-key
+rdm profile use work
+rdm ping
+```
+
+### Find projects and users
 
 ```bash
 rdm project list
 rdm project get --id 1
 rdm project get --identifier backend
-```
 
-### Find users
-
-```bash
 rdm user list --status active
 rdm user me
 ```
 
 ### Find issues
 
-Use `issue list` first. The README documents these filters:
-
-- `--project <id>`
-- `--status <open|closed|*|id>`
-- `--assigned-to <me|id>`
-- `--author <me|id>`
-- `--tracker <id>`
-- `--subject <text>`
-- `--search <text>`
-- `--cf <id>=<value>`
-
-Examples:
+Exact or filter-based issue lookup:
 
 ```bash
 rdm issue list --assigned-to me --status open
-rdm issue list --project backend --search "authentication error"
+rdm issue list --project backend --subject "Authentication error"
 rdm issue list --project backend --cf 5=urgent --cf 6=backend
 ```
 
-Use `--subject` for exact subject matching and `--search` when the user describes partial text, keywords, or fuzzy lookup needs.
-
-### Find time entries
-
-The README documents these filters:
-
-- `--project <id>`
-- `--issue <id>`
-- `--user <me|id>`
-- `--from <YYYY-MM-DD>`
-- `--to <YYYY-MM-DD>`
-- `--cf <id>=<value>`
-- `--group-by <field>`
-
-Examples:
+Text search:
 
 ```bash
-rdm time list --user me --from 2024-01-01 --to 2024-01-31
-rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
+rdm issue list --project backend --search "authentication error"
 ```
 
-## Mutation workflows
+Important: `--search` uses the search endpoint. In the current CLI it composes with `--project`, `--limit`, and `--offset`, but not the other issue-list filters. Do not assume `--status`, `--assigned-to`, `--author`, `--tracker`, `--subject`, or `--cf` still apply when `--search` is present.
 
-Mutations should usually follow discovery.
-
-### Create an issue
+### Create or update an issue
 
 ```bash
 rdm issue create \
@@ -169,50 +143,53 @@ rdm issue create \
   --assigned-to 5
 ```
 
-### Update an issue
-
 ```bash
 rdm issue update --id 123 --status 3 --done-ratio 50 --notes "Halfway done"
 ```
 
-### Log time
-
-Against an issue:
+### Log or update time
 
 ```bash
 rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implemented feature X"
-```
-
-Against a project:
-
-```bash
 rdm time create --project 1 --hours 1.0 --activity Meeting --comment "Sprint planning"
 ```
 
-For `time create`, the activity can be given as a name or an ID. If the valid activity is uncertain, resolve it first:
+If the activity is uncertain:
 
 ```bash
 rdm time activities list
 ```
-
-### Update or delete time
 
 ```bash
 rdm time update --id 456 --hours 3.0 --comment "Adjusted after review"
 rdm time delete --id 456
 ```
 
-## Custom fields
+### Summaries and grouping
 
-This CLI explicitly supports Redmine custom fields in the README.
+```bash
+rdm time list --user me --from 2024-01-01 --to 2024-01-31
+rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
+```
 
-Use repeatable `--cf <id>=<value>` arguments when:
+Supported `--group-by` values:
 
-- filtering issues
-- filtering time entries
-- creating issues with custom field values
-- updating issues with custom field values
-- grouping time entries by a custom field
+- `user`
+- `project`
+- `activity`
+- `issue`
+- `spent_on`
+- `cf_<id>`
+
+## Custom Fields
+
+Use repeatable `--cf <id>=<value>` arguments for:
+
+- issue filtering
+- time-entry filtering
+- issue create
+- issue update
+- time grouping by `cf_<id>`
 
 Examples:
 
@@ -229,104 +206,31 @@ rdm issue update --id 123 --cf 5=normal --cf 7="Q2 2024"
 ```
 
 ```bash
-rdm issue list --project backend --cf 5=urgent --cf 6=backend
 rdm time list --from 2024-01-01 --to 2024-01-31 --cf 9=client-a
 rdm time list --from 2024-01-01 --to 2024-01-31 --group-by cf_9
 ```
 
-Important practice:
+Rules:
 
-- Treat custom field IDs as instance-specific Redmine configuration.
-- Do not invent custom field IDs or allowed values.
-- If the user does not know the IDs, first look for existing examples in prior commands, project docs, or issue/time output the user already has.
+- treat custom-field IDs as instance-specific
+- do not invent IDs or allowed values
+- if IDs are unknown, first inspect existing output or user-provided examples
 
-## Grouping and reporting
+## Agent Patterns
 
-For time analysis, prefer server filtering first, then grouping:
+Prefer:
 
-```bash
-rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
-```
+- `rdm ping` when auth or target instance is uncertain
+- `rdm project list` or `rdm user list` to resolve IDs before writes
+- `rdm issue list --format json` before `rdm issue get` when selecting one item from many
+- `rdm time activities list` before `rdm time create` if activity naming is uncertain
+- `rdm me` or `rdm user me` before using `me` in filters or assignments
 
-Documented group values are:
+Use `--dry-run` only for previewing write requests. In the current CLI, dry-run prints the request and exits with a validation error instead of success, so do not treat it as a successful no-op in scripts or agent loops.
 
-- `user`
-- `project`
-- `activity`
-- `issue`
-- `spent_on`
-- `cf_<id>`
+## Error Handling
 
-This is useful for:
-
-- monthly summaries
-- project breakdowns
-- activity breakdowns
-- custom field reporting
-
-## Agent-efficient patterns
-
-Prefer these patterns:
-
-- Use `rdm issue list ... --format json` before `rdm issue get` when you need to select one issue from many.
-- Use `rdm time activities list` before `rdm time create` if the activity name is uncertain.
-- Use `rdm project list` or `rdm user list` to resolve IDs before create and update operations.
-- Use `--dry-run` when constructing non-trivial issue create requests.
-- Use `--debug` only when troubleshooting; it is not the normal path for routine work.
-
-Avoid these mistakes:
-
-- Jumping straight to `issue update` without first confirming the issue ID.
-- Guessing project IDs, user IDs, tracker IDs, priority IDs, status IDs, or custom field IDs.
-- Using markdown output when you need exact downstream parsing.
-- Treating the CLI as interactive; it is documented as non-interactive and agent-first.
-
-## Examples by intent
-
-### "Show my open work"
-
-```bash
-rdm issue list --assigned-to me --status open
-```
-
-### "Find the authentication bug in backend"
-
-```bash
-rdm issue list --project backend --search "authentication error"
-```
-
-### "Create an issue with custom fields"
-
-```bash
-rdm issue create \
-  --project 1 \
-  --subject "Backend follow-up" \
-  --cf 5=urgent \
-  --cf 6=backend
-```
-
-### "Log time for today"
-
-```bash
-rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implemented feature X"
-```
-
-### "Summarize my month by project"
-
-```bash
-rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
-```
-
-### "Use it in a pipeline"
-
-```bash
-rdm ping --format json
-rdm issue get --id 123 --format json
-```
-
-## Error handling expectations
-
-The README documents stable exit codes:
+Stable exit codes:
 
 - `0` success
 - `2` validation or argument error
@@ -334,20 +238,10 @@ The README documents stable exit codes:
 - `4` resource not found
 - `5` API, server, or network error
 
-Use those semantics when building scripts or agent loops around `rdm`.
+## Gotchas
 
-## When not to rely on this skill alone
-
-Escalate to local help output or repository docs when:
-
-- the user asks for a command or flag not covered in the README
-- the local binary behavior appears different from the README
-- the user needs exact field names from a JSON payload you have not inspected yet
-
-In those cases, verify with:
-
-```bash
-rdm --help
-rdm issue --help
-rdm time --help
-```
+- updating an issue before resolving the correct issue ID
+- guessing project IDs, user IDs, status IDs, tracker IDs, priority IDs, activity IDs, or custom-field IDs
+- using markdown output when exact downstream parsing is required
+- assuming `--search` combines with all issue-list filters
+- assuming `--dry-run` exits successfully
