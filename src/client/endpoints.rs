@@ -9,6 +9,7 @@ use tracing::{debug, warn};
 use crate::config::Config;
 use crate::error::{AppError, Result};
 use crate::models::*;
+use urlencoding;
 
 /// Redmine API client.
 pub struct RedmineClient {
@@ -321,7 +322,7 @@ impl RedmineClient {
             ));
         }
 
-        let path = format!("/issues/{}.json?include=journals", id);
+        let path = format!("/issues/{}.json?include=journals,attachments", id);
         let response = self.execute(self.request(Method::GET, &path)).await?;
         let status = response.status();
 
@@ -471,6 +472,83 @@ impl RedmineClient {
             offset: search_results.offset,
             limit: search_results.limit,
         })
+    }
+
+    // === Attachments ===
+
+    /// Get attachment metadata by ID.
+    pub async fn get_attachment(&self, id: u32) -> Result<Attachment> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with attachment commands",
+            ));
+        }
+
+        let path = format!("/attachments/{}.json", id);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Attachment",
+                id.to_string(),
+                "Use `rdm issue attachment list --issue-id <ID>` to find attachments.",
+            ));
+        }
+
+        let wrapper: AttachmentResponse = Self::parse_json(response).await?;
+        Ok(wrapper.attachment)
+    }
+
+    /// Upload a file and return the upload token.
+    pub async fn upload_file(&self, bytes: Vec<u8>, filename: &str) -> Result<String> {
+        if self.dry_run {
+            return Err(AppError::validation(
+                "Cannot use --dry-run with attachment upload",
+            ));
+        }
+
+        let url = format!(
+            "{}/uploads.json?filename={}",
+            self.base_url,
+            urlencoding::encode(filename)
+        );
+        let response = self
+            .execute(
+                self.client
+                    .post(&url)
+                    .header("X-Redmine-API-Key", &self.api_key)
+                    .header("Content-Type", "application/octet-stream")
+                    .body(bytes),
+            )
+            .await?;
+
+        let wrapper: UploadResponse = Self::parse_json(response).await?;
+        Ok(wrapper.upload.token)
+    }
+
+    /// Download the content of an attachment URL to bytes.
+    pub async fn download_attachment(&self, content_url: &str) -> Result<Vec<u8>> {
+        let response = self
+            .client
+            .get(content_url)
+            .header("X-Redmine-API-Key", &self.api_key)
+            .send()
+            .await
+            .map_err(|e| AppError::network(format!("Download failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(AppError::api(
+                format!("Download failed: {}", response.status()),
+                Some(response.status().as_u16()),
+            ));
+        }
+
+        response
+            .bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| AppError::network(format!("Failed to read download: {}", e)))
     }
 
     // === Time Entries ===

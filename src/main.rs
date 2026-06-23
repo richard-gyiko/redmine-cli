@@ -156,7 +156,7 @@ async fn execute_command(
         }
 
         Command::Issue(cmd) => {
-            use cli::issue::IssueCommand;
+            use cli::issue::{AttachmentCommand, IssueCommand};
             match cmd {
                 IssueCommand::List(args) => {
                     let result = cli::issue::list(client, args).await?;
@@ -179,6 +179,20 @@ async fn execute_command(
                     let result = cli::issue::update(client, args).await?;
                     Ok(format.format_success(result, Meta::default()))
                 }
+                IssueCommand::Attachment(cmd) => match cmd {
+                    AttachmentCommand::List(args) => {
+                        let result = cli::issue::attachment_list(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                    AttachmentCommand::Download(args) => {
+                        let result = cli::issue::attachment_download(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                    AttachmentCommand::Upload(args) => {
+                        let result = cli::issue::attachment_upload(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                },
             }
         }
 

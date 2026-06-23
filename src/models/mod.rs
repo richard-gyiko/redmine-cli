@@ -1,5 +1,6 @@
 //! Data models for Redmine API responses.
 
+pub mod attachment;
 mod custom_field;
 mod issue;
 mod project;
@@ -7,6 +8,11 @@ mod time_entry;
 mod user;
 
 // Re-export for public API (may not be used internally but available for consumers)
+#[allow(unused_imports)]
+pub use attachment::{
+    Attachment, AttachmentDownloaded, AttachmentList, AttachmentRef, AttachmentResponse,
+    AttachmentUploaded, UploadResponse,
+};
 #[allow(unused_imports)]
 pub use custom_field::{CustomField, CustomFieldValue};
 pub use issue::{
