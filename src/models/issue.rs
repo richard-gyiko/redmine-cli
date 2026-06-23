@@ -32,6 +32,29 @@ pub struct Priority {
     pub name: String,
 }
 
+/// A single field change within a journal entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalDetail {
+    pub property: String,
+    pub name: String,
+    #[serde(default)]
+    pub old_value: Option<String>,
+    #[serde(default)]
+    pub new_value: Option<String>,
+}
+
+/// A journal entry (comment + field changes) on an issue.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Journal {
+    pub id: u32,
+    pub user: User,
+    pub created_on: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub details: Vec<JournalDetail>,
+}
+
 /// Issue from Redmine API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Issue {
@@ -64,6 +87,8 @@ pub struct Issue {
     pub updated_on: Option<String>,
     #[serde(default)]
     pub custom_fields: Option<Vec<CustomField>>,
+    #[serde(default)]
+    pub journals: Option<Vec<Journal>>,
 }
 
 /// List of issues from API.
@@ -225,6 +250,25 @@ impl MarkdownOutput for Issue {
                 output.push_str("\n### Description\n\n");
                 output.push_str(desc);
                 output.push('\n');
+            }
+        }
+
+        if let Some(journals) = &self.journals {
+            let notes: Vec<&Journal> = journals
+                .iter()
+                .filter(|j| j.notes.as_deref().map(|n| !n.is_empty()).unwrap_or(false))
+                .collect();
+            if !notes.is_empty() {
+                output.push_str("\n### Comments\n\n");
+                for j in notes {
+                    output.push_str(&format!(
+                        "**#{} — {} ({})**\n\n{}\n\n---\n\n",
+                        j.id,
+                        j.user.name,
+                        j.created_on,
+                        j.notes.as_deref().unwrap_or("")
+                    ));
+                }
             }
         }
 

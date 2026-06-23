@@ -321,7 +321,7 @@ impl RedmineClient {
             ));
         }
 
-        let path = format!("/issues/{}.json", id);
+        let path = format!("/issues/{}.json?include=journals", id);
         let response = self.execute(self.request(Method::GET, &path)).await?;
         let status = response.status();
 
