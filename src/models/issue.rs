@@ -1,5 +1,6 @@
 //! Issue model with related types.
 
+use super::attachment::{format_bytes, Attachment, AttachmentRef};
 use super::custom_field::{CustomField, CustomFieldValue};
 use super::project::ProjectRef;
 use super::user::User;
@@ -89,6 +90,8 @@ pub struct Issue {
     pub custom_fields: Option<Vec<CustomField>>,
     #[serde(default)]
     pub journals: Option<Vec<Journal>>,
+    #[serde(default)]
+    pub attachments: Option<Vec<Attachment>>,
 }
 
 /// List of issues from API.
@@ -169,6 +172,9 @@ pub struct UpdateIssue {
     /// Custom field values to update.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_fields: Option<Vec<CustomFieldValue>>,
+    /// Attachments to add (upload tokens).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uploads: Option<Vec<AttachmentRef>>,
 }
 
 /// Wrapper for issue update request.
@@ -267,6 +273,19 @@ impl MarkdownOutput for Issue {
                         j.user.name,
                         j.created_on,
                         j.notes.as_deref().unwrap_or("")
+                    ));
+                }
+            }
+        }
+
+        if let Some(attachments) = &self.attachments {
+            if !attachments.is_empty() {
+                output.push_str("\n### Attachments\n\n");
+                for a in attachments {
+                    let size = a.filesize.map(format_bytes).unwrap_or_else(|| "-".into());
+                    output.push_str(&format!(
+                        "- **#{}** {} ({}) — `rdm issue attachment download --id {}`\n",
+                        a.id, a.filename, size, a.id
                     ));
                 }
             }

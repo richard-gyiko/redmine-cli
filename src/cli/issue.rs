@@ -2,11 +2,16 @@
 
 use clap::{Args, Subcommand};
 use serde::Serialize;
+use std::path::PathBuf;
 
 use super::parse_custom_fields;
 use crate::client::{endpoints::IssueFilters, RedmineClient};
-use crate::error::Result;
-use crate::models::{CustomFieldValue, Issue, IssueList, NewIssue, UpdateIssue};
+use crate::error::{AppError, Result};
+use crate::models::{
+    attachment::{guess_content_type, AttachmentRef},
+    AttachmentDownloaded, AttachmentList, AttachmentUploaded, CustomFieldValue, Issue, IssueList,
+    NewIssue, UpdateIssue,
+};
 use crate::output::{markdown::markdown_kv_table, MarkdownOutput, Meta};
 
 #[derive(Debug, Subcommand)]
@@ -19,6 +24,52 @@ pub enum IssueCommand {
     Create(IssueCreateArgs),
     /// Update an issue.
     Update(IssueUpdateArgs),
+    /// Attachment commands.
+    #[command(subcommand)]
+    Attachment(AttachmentCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AttachmentCommand {
+    /// List attachments on an issue.
+    List(AttachmentListArgs),
+    /// Download an attachment by ID.
+    Download(AttachmentDownloadArgs),
+    /// Upload a file and attach it to an issue.
+    Upload(AttachmentUploadArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentListArgs {
+    /// Issue ID.
+    #[arg(long)]
+    pub issue_id: u32,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentDownloadArgs {
+    /// Attachment ID.
+    #[arg(long)]
+    pub id: u32,
+    /// Output path (default: current directory, filename from attachment).
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct AttachmentUploadArgs {
+    /// Issue ID to attach the file to.
+    #[arg(long)]
+    pub issue_id: u32,
+    /// Path to the file to upload.
+    #[arg(long)]
+    pub file: PathBuf,
+    /// Override filename (default: file's basename).
+    #[arg(long)]
+    pub filename: Option<String>,
+    /// Optional description for the attachment.
+    #[arg(long)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -255,4 +306,97 @@ pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<Is
 
     client.update_issue(args.id, update).await?;
     Ok(IssueUpdated { id: args.id })
+}
+
+/// List attachments on an issue.
+pub async fn attachment_list(
+    client: &RedmineClient,
+    args: &AttachmentListArgs,
+) -> Result<AttachmentList> {
+    let issue = client.get_issue(args.issue_id).await?;
+    Ok(AttachmentList {
+        issue_id: args.issue_id,
+        attachments: issue.attachments.unwrap_or_default(),
+    })
+}
+
+/// Download an attachment.
+pub async fn attachment_download(
+    client: &RedmineClient,
+    args: &AttachmentDownloadArgs,
+) -> Result<AttachmentDownloaded> {
+    let attachment = client.get_attachment(args.id).await?;
+    let bytes = client.download_attachment(&attachment.content_url).await?;
+
+    let output_path = match &args.output {
+        Some(p) if p.is_dir() => p.join(&attachment.filename),
+        Some(p) => p.clone(),
+        None => PathBuf::from(&attachment.filename),
+    };
+
+    tokio::fs::write(&output_path, &bytes).await.map_err(|e| {
+        AppError::api(
+            format!("Failed to write {}: {}", output_path.display(), e),
+            None,
+        )
+    })?;
+
+    Ok(AttachmentDownloaded {
+        id: attachment.id,
+        filename: attachment.filename,
+        saved_to: output_path,
+        bytes: bytes.len() as u64,
+    })
+}
+
+/// Upload a file and attach it to an issue.
+pub async fn attachment_upload(
+    client: &RedmineClient,
+    args: &AttachmentUploadArgs,
+) -> Result<AttachmentUploaded> {
+    if !args.file.exists() {
+        return Err(AppError::validation(format!(
+            "File not found: {}",
+            args.file.display()
+        )));
+    }
+
+    let filename = args
+        .filename
+        .clone()
+        .or_else(|| {
+            args.file
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "attachment".to_string());
+
+    let content_type = guess_content_type(&args.file).to_string();
+    let bytes = tokio::fs::read(&args.file).await.map_err(|e| {
+        AppError::api(
+            format!("Failed to read {}: {}", args.file.display(), e),
+            None,
+        )
+    })?;
+
+    let token = client.upload_file(bytes, &filename).await?;
+
+    let upload_ref = AttachmentRef {
+        token,
+        filename: filename.clone(),
+        content_type,
+        description: args.description.clone(),
+    };
+
+    let update = UpdateIssue {
+        uploads: Some(vec![upload_ref]),
+        ..Default::default()
+    };
+
+    client.update_issue(args.issue_id, update).await?;
+
+    Ok(AttachmentUploaded {
+        filename,
+        issue_id: args.issue_id,
+    })
 }
