@@ -20,6 +20,8 @@ pub struct Project {
     pub name: String,
     pub identifier: String,
     #[serde(default)]
+    pub parent: Option<ProjectRef>,
+    #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
     pub status: Option<u32>,
@@ -62,6 +64,10 @@ impl MarkdownOutput for Project {
             ("Name", self.name.clone()),
             ("Identifier", self.identifier.clone()),
         ];
+
+        if let Some(parent) = &self.parent {
+            pairs.push(("Parent", format!("{} (#{})", parent.name, parent.id)));
+        }
 
         if let Some(status) = self.status {
             let status_str = match status {
@@ -125,7 +131,7 @@ impl MarkdownOutput for ProjectList {
             return output;
         }
 
-        let headers = &["ID", "Identifier", "Name", "Status"];
+        let headers = &["ID", "Identifier", "Name", "Parent", "Status"];
         let rows: Vec<Vec<String>> = self
             .projects
             .iter()
@@ -139,10 +145,16 @@ impl MarkdownOutput for ProjectList {
                         _ => "Unknown",
                     })
                     .unwrap_or("-");
+                let parent = p
+                    .parent
+                    .as_ref()
+                    .map(|pr| format!("{} (#{})", pr.name, pr.id))
+                    .unwrap_or_else(|| "-".to_string());
                 vec![
                     p.id.to_string(),
                     p.identifier.clone(),
                     p.name.clone(),
+                    parent,
                     status.to_string(),
                 ]
             })
