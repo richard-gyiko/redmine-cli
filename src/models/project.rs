@@ -65,9 +65,12 @@ impl MarkdownOutput for Project {
             ("Identifier", self.identifier.clone()),
         ];
 
-        if let Some(parent) = &self.parent {
-            pairs.push(("Parent", format!("{} (#{})", parent.name, parent.id)));
-        }
+        let parent_str = self
+            .parent
+            .as_ref()
+            .map(|p| format!("{} (#{})", p.name, p.id))
+            .unwrap_or_else(|| "-".to_string());
+        pairs.push(("Parent", parent_str));
 
         if let Some(status) = self.status {
             let status_str = match status {

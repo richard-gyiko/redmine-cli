@@ -213,6 +213,57 @@ async fn golden_project_list_json_item_fields() {
         project["is_public"].is_boolean(),
         "project.is_public should be a boolean"
     );
+    // Parent is surfaced as a {id, name} object
+    assert!(
+        project["parent"].is_object(),
+        "project.parent should be an object"
+    );
+    assert_eq!(
+        project["parent"]["id"], 42,
+        "project.parent.id should match mock"
+    );
+}
+
+#[tokio::test]
+async fn golden_project_list_markdown_shows_parent() {
+    let server = start_mock_server().await;
+    mock_projects_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["project", "list"]);
+
+    let output = cmd.output().expect("command should run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Parent"),
+        "list markdown should have a Parent column, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Parent Project (#42)"),
+        "list markdown should render parent as Name (#id), got:\n{stdout}"
+    );
+}
+
+#[tokio::test]
+async fn golden_project_get_markdown_shows_parent() {
+    let server = start_mock_server().await;
+    mock_project_get().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["project", "get", "--id", "1"]);
+
+    let output = cmd.output().expect("command should run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Parent Project (#42)"),
+        "get markdown should render parent as Name (#id), got:\n{stdout}"
+    );
 }
 
 // ============================================================================
