@@ -157,7 +157,17 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 - `--tracker <id>` - Filter by tracker
 - `--subject <text>` - Filter by exact subject match
 - `--search <text>` - Search issues by text (subject/description)
+- `--query-id <id>` - Run a saved query (see `rdm query list`); add `--project` for a project-scoped query
 - `--cf <id>=<value>` - Filter by custom field (repeatable)
+
+### Saved Queries
+
+| Command | Description |
+|---------|-------------|
+| `rdm query list` | List saved issue queries |
+| `rdm query list --type time` | List saved time-entry queries |
+
+Run a saved query via `--query-id` on `issue list` or `time list`. Project-scoped queries also require `--project <id>` (Redmine resolves the query against the project in the URL path).
 
 ### Time Entries
 
@@ -176,6 +186,7 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 - `--user <me|id>` - Filter by user
 - `--from <YYYY-MM-DD>` - Filter from date
 - `--to <YYYY-MM-DD>` - Filter to date
+- `--query-id <id>` - Run a saved time-entry query (see `rdm query list --type time`); add `--project` for a project-scoped query
 - `--cf <id>=<value>` - Filter by custom field (repeatable)
 - `--group-by <field>` - Group results by: `user`, `project`, `activity`, `issue`, `spent_on`, or `cf_<id>`
 
@@ -377,6 +388,21 @@ rdm time list --user me --from 2024-01-01 --to 2024-01-31 --group-by project
 
 ```bash
 rdm issue list --search "authentication error" --project backend
+```
+
+### Run a saved query
+
+```bash
+# List available queries
+rdm query list
+rdm query list --type time
+
+# Run a global saved query
+rdm issue list --query-id 40
+
+# Run a project-scoped saved query (requires --project)
+rdm issue list --query-id 5 --project 10
+rdm time list --query-id 112 --project 113
 ```
 
 ### Filter issues by custom field

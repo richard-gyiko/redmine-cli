@@ -4,6 +4,7 @@ pub mod issue;
 pub mod ping;
 pub mod profile;
 pub mod project;
+pub mod query;
 pub mod time;
 pub mod user;
 
@@ -89,6 +90,10 @@ pub enum Command {
     /// Issue commands.
     #[command(subcommand)]
     Issue(issue::IssueCommand),
+
+    /// Saved query commands.
+    #[command(subcommand)]
+    Query(query::QueryCommand),
 
     /// Time entry commands.
     #[command(subcommand)]

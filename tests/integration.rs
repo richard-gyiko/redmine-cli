@@ -128,6 +128,69 @@ async fn test_issue_get() {
         .stdout(predicate::str::contains("#123"));
 }
 
+#[tokio::test]
+async fn test_issue_list_query_id_project_scoped() {
+    // A --query-id with --project must route through /projects/{id}/issues.json.
+    let server = start_mock_server().await;
+    mock_project_issues_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("list")
+        .args(["--query-id", "5", "--project", "10"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Test Issue"));
+}
+
+// ============================================================================
+// Query Commands
+// ============================================================================
+
+#[tokio::test]
+async fn test_query_list() {
+    let server = start_mock_server().await;
+    mock_queries_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("query")
+        .arg("list");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Global Query"))
+        .stdout(predicate::str::contains("Project Query"))
+        .stdout(predicate::str::contains("global"))
+        .stdout(predicate::str::contains("project 10"));
+}
+
+#[tokio::test]
+async fn test_query_list_type_time_json() {
+    let server = start_mock_server().await;
+    mock_queries_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["--format", "json"])
+        .arg("query")
+        .arg("list")
+        .args(["--type", "time"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"ok\": true"))
+        .stdout(predicate::str::contains("\"name\": \"Global Query\""));
+}
+
 // ============================================================================
 // Time Entry Commands
 // ============================================================================
@@ -168,6 +231,26 @@ async fn test_time_list_json() {
         .success()
         .stdout(predicate::str::contains("\"ok\": true"))
         .stdout(predicate::str::contains("\"hours\": 2.5"));
+}
+
+#[tokio::test]
+async fn test_time_list_query_id_project_scoped() {
+    // A --query-id with --project must route through /projects/{id}/time_entries.json.
+    let server = start_mock_server().await;
+    mock_project_time_entries_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("time")
+        .arg("list")
+        .args(["--query-id", "112", "--project", "113"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("456"))
+        .stdout(predicate::str::contains("Development"));
 }
 
 #[tokio::test]

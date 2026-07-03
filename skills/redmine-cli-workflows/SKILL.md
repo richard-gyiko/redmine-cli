@@ -41,6 +41,7 @@ Use this skill when the user needs any of these:
 - inspect current user or active config
 - list, get, create, or update issues
 - list, get, create, update, delete, or group time entries
+- run saved (custom) queries for issues or time entries
 - resolve project or user IDs before a write
 - work with custom-field filters or values
 
@@ -67,6 +68,7 @@ Core command groups:
 - Projects: `project list`, `project get`
 - Issues: `issue list`, `issue get`, `issue create`, `issue update`
 - Time: `time list`, `time get`, `time create`, `time update`, `time delete`, `time activities list`
+- Queries: `query list` (add `--type time` for time-entry queries)
 - Users: `user list`, `user me`
 
 Configuration precedence:
@@ -130,6 +132,20 @@ rdm issue list --project backend --search "authentication error"
 ```
 
 Important: `--search` uses the search endpoint. In the current CLI it composes with `--project`, `--limit`, and `--offset`, but not the other issue-list filters. Do not assume `--status`, `--assigned-to`, `--author`, `--tracker`, `--subject`, or `--cf` still apply when `--search` is present.
+
+### Run a saved query
+
+Saved (custom) queries live in Redmine's UI. List them, then run one via `--query-id`:
+
+```bash
+rdm query list
+rdm query list --type time
+
+rdm issue list --query-id 40
+rdm time list --query-id 112 --project 113
+```
+
+Important: a project-scoped query (scope shown as `project <id>` in `query list`) only resolves when you also pass `--project <id>`; without it the API returns 404. Global queries (scope `global`) run without `--project`. Query type is fixed at save time: use `--query-id` on `issue list` for issue queries and on `time list` for time-entry queries.
 
 ### Create or update an issue
 
@@ -245,3 +261,4 @@ Stable exit codes:
 - using markdown output when exact downstream parsing is required
 - assuming `--search` combines with all issue-list filters
 - assuming `--dry-run` exits successfully
+- running a project-scoped saved query without `--project` (returns 404)
