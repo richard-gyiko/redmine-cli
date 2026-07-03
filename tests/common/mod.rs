@@ -1,6 +1,6 @@
 //! Common test utilities.
 
-use wiremock::matchers::{header, method, path, path_regex};
+use wiremock::matchers::{header, method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Start a mock Redmine server.
@@ -110,6 +110,49 @@ pub fn mock_issues_list() -> Mock {
         })))
 }
 
+/// Create a mock for a project-scoped issues list run via saved query 5.
+///
+/// Requires `query_id=5` so the test fails if the CLI drops the parameter.
+pub fn mock_project_issues_query() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/projects/[^/]+/issues\.json.*"))
+        .and(query_param("query_id", "5"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issues": [
+                {
+                    "id": 123,
+                    "subject": "Test Issue",
+                    "project": {"id": 1, "name": "Test Project", "identifier": "test-project"},
+                    "status": {"id": 1, "name": "New"},
+                    "priority": {"id": 2, "name": "Normal"},
+                    "author": {"id": 1, "name": "Test User"},
+                    "created_on": "2024-01-01T00:00:00Z",
+                    "updated_on": "2024-01-15T12:00:00Z"
+                }
+            ],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
+/// Create a mock for the saved queries list endpoint.
+pub fn mock_queries_list() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/queries\.json.*"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "queries": [
+                {"id": 1, "name": "Global Query", "is_public": true, "project_id": null},
+                {"id": 2, "name": "Project Query", "is_public": false, "project_id": 10}
+            ],
+            "total_count": 2,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
 /// Create a mock for getting a single issue.
 pub fn mock_issue_get() -> Mock {
     Mock::given(method("GET"))
@@ -135,6 +178,34 @@ pub fn mock_issue_get() -> Mock {
 pub fn mock_time_entries_list() -> Mock {
     Mock::given(method("GET"))
         .and(path_regex(r"/time_entries\.json.*"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "time_entries": [
+                {
+                    "id": 456,
+                    "hours": 2.5,
+                    "comments": "Test comment",
+                    "spent_on": "2024-01-15",
+                    "activity": {"id": 1, "name": "Development"},
+                    "user": {"id": 1, "name": "Test User"},
+                    "issue": {"id": 123},
+                    "created_on": "2024-01-15T12:00:00Z",
+                    "updated_on": "2024-01-15T12:00:00Z"
+                }
+            ],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
+/// Create a mock for a project-scoped time entries list run via saved query 112.
+///
+/// Requires `query_id=112` so the test fails if the CLI drops the parameter.
+pub fn mock_project_time_entries_query() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/projects/[^/]+/time_entries\.json.*"))
+        .and(query_param("query_id", "112"))
         .and(header("X-Redmine-API-Key", "test-api-key"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "time_entries": [

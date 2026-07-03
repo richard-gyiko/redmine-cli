@@ -196,6 +196,16 @@ async fn execute_command(
             }
         }
 
+        Command::Query(cmd) => {
+            use cli::query::QueryCommand;
+            match cmd {
+                QueryCommand::List(args) => {
+                    let result = cli::query::list(client, args).await?;
+                    Ok(format.format_success(result, Meta::default()))
+                }
+            }
+        }
+
         Command::Time(cmd) => {
             use cli::time::TimeCommand;
             match cmd {

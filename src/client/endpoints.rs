@@ -226,6 +226,30 @@ impl RedmineClient {
         Self::parse_json(response).await
     }
 
+    // === Queries ===
+
+    /// List saved (custom) queries, optionally scoped to a query type.
+    ///
+    /// `query_type` maps to Redmine's `type` param, e.g. `IssueQuery` or
+    /// `TimeEntryQuery`. When `None`, Redmine defaults to `IssueQuery`.
+    pub async fn list_queries(&self, query_type: Option<&str>) -> Result<QueryList> {
+        if self.dry_run {
+            return Ok(QueryList {
+                queries: vec![],
+                total_count: Some(0),
+                offset: Some(0),
+                limit: None,
+            });
+        }
+
+        let path = match query_type {
+            Some(t) => format!("/queries.json?type={}", urlencoding::encode(t)),
+            None => "/queries.json".to_string(),
+        };
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+        Self::parse_json(response).await
+    }
+
     // === Projects ===
 
     /// List projects.
@@ -286,9 +310,15 @@ impl RedmineClient {
             format!("offset={}", filters.offset),
         ];
 
-        if let Some(project) = &filters.project {
-            params.push(format!("project_id={}", project));
-        }
+        // A project-scoped saved query only resolves when the project is in the
+        // URL path (Redmine binds `@project` from the path, not the `project_id`
+        // param), so route through `/projects/{id}/issues.json` when a project
+        // is given and drop the redundant `project_id` param in that case.
+        let base = match &filters.project {
+            Some(project) => format!("/projects/{}/issues.json", urlencoding::encode(project)),
+            None => "/issues.json".to_string(),
+        };
+
         if let Some(status) = &filters.status {
             params.push(format!("status_id={}", status));
         }
@@ -304,12 +334,15 @@ impl RedmineClient {
         if let Some(subject) = &filters.subject {
             params.push(format!("subject={}", urlencoding::encode(subject)));
         }
+        if let Some(query_id) = filters.query_id {
+            params.push(format!("query_id={}", query_id));
+        }
         // Add custom field filters
         for (cf_id, cf_value) in &filters.custom_fields {
             params.push(format!("cf_{}={}", cf_id, urlencoding::encode(cf_value)));
         }
 
-        let path = format!("/issues.json?{}", params.join("&"));
+        let path = format!("{}?{}", base, params.join("&"));
         let response = self.execute(self.request(Method::GET, &path)).await?;
         Self::parse_json(response).await
     }
@@ -583,9 +616,16 @@ impl RedmineClient {
             format!("offset={}", filters.offset),
         ];
 
-        if let Some(project) = &filters.project {
-            params.push(format!("project_id={}", project));
-        }
+        // Route through the project path so project-scoped saved queries resolve
+        // (see `list_issues` for why); drop the redundant `project_id` param then.
+        let base = match &filters.project {
+            Some(project) => format!(
+                "/projects/{}/time_entries.json",
+                urlencoding::encode(project)
+            ),
+            None => "/time_entries.json".to_string(),
+        };
+
         if let Some(issue) = &filters.issue {
             params.push(format!("issue_id={}", issue));
         }
@@ -598,12 +638,15 @@ impl RedmineClient {
         if let Some(to) = &filters.to {
             params.push(format!("to={}", to));
         }
+        if let Some(query_id) = filters.query_id {
+            params.push(format!("query_id={}", query_id));
+        }
         // Add custom field filters
         for (cf_id, cf_value) in &filters.custom_fields {
             params.push(format!("cf_{}={}", cf_id, urlencoding::encode(cf_value)));
         }
 
-        let path = format!("/time_entries.json?{}", params.join("&"));
+        let path = format!("{}?{}", base, params.join("&"));
         let response = self.execute(self.request(Method::GET, &path)).await?;
         Self::parse_json(response).await
     }
@@ -735,6 +778,7 @@ pub struct IssueFilters {
     pub author: Option<String>,
     pub tracker: Option<String>,
     pub subject: Option<String>,
+    pub query_id: Option<u32>,
     pub custom_fields: Vec<(u32, String)>,
     pub limit: u32,
     pub offset: u32,
@@ -759,6 +803,7 @@ pub struct TimeEntryFilters {
     pub user: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
+    pub query_id: Option<u32>,
     pub custom_fields: Vec<(u32, String)>,
     pub limit: u32,
     pub offset: u32,

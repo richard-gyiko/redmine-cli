@@ -4,6 +4,7 @@ pub mod attachment;
 mod custom_field;
 mod issue;
 mod project;
+mod query;
 mod time_entry;
 mod user;
 
@@ -21,6 +22,8 @@ pub use issue::{
 // Re-export for internal use by client/endpoints.rs
 pub(crate) use issue::SearchResults;
 pub use project::{Project, ProjectList, ProjectResponse};
+#[allow(unused_imports)]
+pub use query::{Query, QueryList};
 pub use time_entry::{
     Activity, ActivityList, GroupByField, GroupedTimeEntries, NewTimeEntry, NewTimeEntryRequest,
     TimeEntry, TimeEntryCreated, TimeEntryDeleted, TimeEntryList, TimeEntryResponse,

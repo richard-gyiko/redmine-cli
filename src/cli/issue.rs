@@ -95,6 +95,10 @@ pub struct IssueListArgs {
     /// Search issues by text (searches subject and description).
     #[arg(long)]
     pub search: Option<String>,
+    /// Run a saved query by ID (see `rdm query list`). For a project-scoped
+    /// query, also pass `--project` with its project.
+    #[arg(long)]
+    pub query_id: Option<u32>,
     /// Filter by custom field value (format: id=value, repeatable).
     #[arg(long = "cf", value_name = "ID=VALUE")]
     pub custom_fields: Vec<String>,
@@ -246,6 +250,7 @@ pub async fn list(client: &RedmineClient, args: &IssueListArgs) -> Result<IssueL
         author: args.author.clone(),
         tracker: args.tracker.clone(),
         subject: args.subject.clone(),
+        query_id: args.query_id,
         custom_fields,
         limit: args.limit,
         offset: args.offset,

@@ -87,6 +87,10 @@ pub struct TimeListArgs {
     /// Filter to date (YYYY-MM-DD).
     #[arg(long)]
     pub to: Option<String>,
+    /// Run a saved query by ID (see `rdm query list --type time`). For a
+    /// project-scoped query, also pass `--project` with its project.
+    #[arg(long)]
+    pub query_id: Option<u32>,
     /// Filter by custom field value (format: id=value, repeatable).
     #[arg(long = "cf", value_name = "ID=VALUE")]
     pub custom_fields: Vec<String>,
@@ -241,6 +245,7 @@ pub async fn list(client: &RedmineClient, args: &TimeListArgs) -> Result<TimeLis
         user: args.user.clone(),
         from: args.from.clone(),
         to: args.to.clone(),
+        query_id: args.query_id,
         custom_fields,
         limit: args.limit,
         offset: args.offset,
