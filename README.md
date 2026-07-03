@@ -48,6 +48,11 @@ sudo mv rdm /usr/local/bin/
 curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-x86_64-unknown-linux-gnu.tar.gz
 tar -xzf rdm-x86_64-unknown-linux-gnu.tar.gz
 sudo mv rdm /usr/local/bin/
+
+# Linux (no sudo — user-scoped install)
+# ~/.local/bin is on PATH by default on most modern distributions
+mkdir -p ~/.local/bin
+mv rdm ~/.local/bin/
 ```
 
 ### From Source
