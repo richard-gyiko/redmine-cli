@@ -1,6 +1,6 @@
 //! Common test utilities.
 
-use wiremock::matchers::{header, method, path, path_regex};
+use wiremock::matchers::{header, method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Start a mock Redmine server.
@@ -110,10 +110,13 @@ pub fn mock_issues_list() -> Mock {
         })))
 }
 
-/// Create a mock for the project-scoped issues list endpoint.
-pub fn mock_project_issues_list() -> Mock {
+/// Create a mock for a project-scoped issues list run via saved query 5.
+///
+/// Requires `query_id=5` so the test fails if the CLI drops the parameter.
+pub fn mock_project_issues_query() -> Mock {
     Mock::given(method("GET"))
         .and(path_regex(r"/projects/[^/]+/issues\.json.*"))
+        .and(query_param("query_id", "5"))
         .and(header("X-Redmine-API-Key", "test-api-key"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "issues": [
@@ -196,10 +199,13 @@ pub fn mock_time_entries_list() -> Mock {
         })))
 }
 
-/// Create a mock for the project-scoped time entries list endpoint.
-pub fn mock_project_time_entries_list() -> Mock {
+/// Create a mock for a project-scoped time entries list run via saved query 112.
+///
+/// Requires `query_id=112` so the test fails if the CLI drops the parameter.
+pub fn mock_project_time_entries_query() -> Mock {
     Mock::given(method("GET"))
         .and(path_regex(r"/projects/[^/]+/time_entries\.json.*"))
+        .and(query_param("query_id", "112"))
         .and(header("X-Redmine-API-Key", "test-api-key"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "time_entries": [

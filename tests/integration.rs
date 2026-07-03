@@ -132,7 +132,7 @@ async fn test_issue_get() {
 async fn test_issue_list_query_id_project_scoped() {
     // A --query-id with --project must route through /projects/{id}/issues.json.
     let server = start_mock_server().await;
-    mock_project_issues_list().mount(&server).await;
+    mock_project_issues_query().mount(&server).await;
 
     let mut cmd = get_binary();
     cmd.env("APPDATA", std::env::temp_dir())
@@ -237,7 +237,7 @@ async fn test_time_list_json() {
 async fn test_time_list_query_id_project_scoped() {
     // A --query-id with --project must route through /projects/{id}/time_entries.json.
     let server = start_mock_server().await;
-    mock_project_time_entries_list().mount(&server).await;
+    mock_project_time_entries_query().mount(&server).await;
 
     let mut cmd = get_binary();
     cmd.env("APPDATA", std::env::temp_dir())
