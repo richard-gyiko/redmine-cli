@@ -619,7 +619,10 @@ impl RedmineClient {
         // Route through the project path so project-scoped saved queries resolve
         // (see `list_issues` for why); drop the redundant `project_id` param then.
         let base = match &filters.project {
-            Some(project) => format!("/projects/{}/time_entries.json", urlencoding::encode(project)),
+            Some(project) => format!(
+                "/projects/{}/time_entries.json",
+                urlencoding::encode(project)
+            ),
             None => "/time_entries.json".to_string(),
         };
 
