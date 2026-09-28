@@ -7,6 +7,7 @@ mod project;
 mod query;
 mod time_entry;
 mod user;
+mod version;
 
 // Re-export for public API (may not be used internally but available for consumers)
 #[allow(unused_imports)]
@@ -33,3 +34,5 @@ pub use user::{CurrentUser, CurrentUserResponse};
 // Re-export for public API
 #[allow(unused_imports)]
 pub use user::User;
+#[allow(unused_imports)]
+pub use version::{Version, VersionList, VersionRef};

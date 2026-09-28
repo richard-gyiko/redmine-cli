@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 
 use super::parse_custom_fields;
+use super::version::resolve_version_ids;
 use crate::client::{endpoints::IssueFilters, RedmineClient};
 use crate::error::{AppError, Result};
 use crate::models::{
@@ -89,6 +90,10 @@ pub struct IssueListArgs {
     /// Filter by tracker ID.
     #[arg(long)]
     pub tracker: Option<String>,
+    /// Filter by target version (ID or name; repeatable or comma-separated).
+    /// Names are resolved within `--project`.
+    #[arg(long = "version", value_name = "ID|NAME", value_delimiter = ',')]
+    pub versions: Vec<String>,
     /// Filter by exact subject match.
     #[arg(long)]
     pub subject: Option<String>,
@@ -174,6 +179,9 @@ pub struct IssueUpdateArgs {
     /// New assignee ID.
     #[arg(long)]
     pub assigned_to: Option<u32>,
+    /// New target version (ID or name within the issue's project).
+    #[arg(long, value_name = "ID|NAME")]
+    pub version: Option<String>,
     /// Done percentage (0-100).
     #[arg(long)]
     pub done_ratio: Option<u32>,
@@ -249,6 +257,8 @@ pub async fn list(client: &RedmineClient, args: &IssueListArgs) -> Result<IssueL
         assigned_to: args.assigned_to.clone(),
         author: args.author.clone(),
         tracker: args.tracker.clone(),
+        fixed_versions: resolve_version_ids(client, args.project.as_deref(), &args.versions)
+            .await?,
         subject: args.subject.clone(),
         query_id: args.query_id,
         custom_fields,
@@ -297,12 +307,28 @@ pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<Is
 pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<IssueUpdated> {
     let custom_fields = parse_custom_field_values(&args.custom_fields)?;
 
+    let fixed_version_id = match &args.version {
+        Some(v) => match v.trim().parse::<u32>() {
+            Ok(id) => Some(id),
+            // Names resolve within the issue's own project.
+            Err(_) => {
+                let project = client.get_issue(args.id).await?.project.id.to_string();
+                resolve_version_ids(client, Some(&project), std::slice::from_ref(v))
+                    .await?
+                    .first()
+                    .copied()
+            }
+        },
+        None => None,
+    };
+
     let update = UpdateIssue {
         subject: args.subject.clone(),
         description: args.description.clone(),
         status_id: args.status,
         priority_id: args.priority,
         assigned_to_id: args.assigned_to,
+        fixed_version_id,
         done_ratio: args.done_ratio,
         notes: args.notes.clone(),
         custom_fields,

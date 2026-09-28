@@ -206,6 +206,16 @@ async fn execute_command(
             }
         }
 
+        Command::Version(cmd) => {
+            use cli::version::VersionCommand;
+            match cmd {
+                VersionCommand::List(args) => {
+                    let result = cli::version::list(client, args).await?;
+                    Ok(format.format_success(result, Meta::default()))
+                }
+            }
+        }
+
         Command::Time(cmd) => {
             use cli::time::TimeCommand;
             match cmd {

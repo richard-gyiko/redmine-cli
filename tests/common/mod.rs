@@ -1,6 +1,6 @@
 //! Common test utilities.
 
-use wiremock::matchers::{header, method, path, path_regex, query_param};
+use wiremock::matchers::{body_partial_json, header, method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Start a mock Redmine server.
@@ -168,10 +168,76 @@ pub fn mock_issue_get() -> Mock {
                 "priority": {"id": 2, "name": "Normal"},
                 "tracker": {"id": 1, "name": "Bug"},
                 "author": {"id": 1, "name": "Test User"},
+                "fixed_version": {"id": 116, "name": "Milestone 1"},
                 "created_on": "2024-01-01T00:00:00Z",
                 "updated_on": "2024-01-15T12:00:00Z"
             }
         })))
+}
+
+/// Create a mock for a project's versions list.
+pub fn mock_versions_list() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/projects/[^/]+/versions\.json"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "versions": [
+                {
+                    "id": 116,
+                    "name": "Milestone 1",
+                    "project": {"id": 10, "name": "Test Project"},
+                    "status": "open",
+                    "due_date": "2024-03-01",
+                    "sharing": "none"
+                },
+                {
+                    "id": 117,
+                    "name": "Milestone 2",
+                    "project": {"id": 10, "name": "Test Project"},
+                    "status": "closed",
+                    "due_date": null,
+                    "sharing": "none"
+                }
+            ],
+            "total_count": 2
+        })))
+}
+
+/// Create a mock for a project-scoped issues list filtered by versions 116 and 117.
+///
+/// Requires `fixed_version_id=116|117` so the test fails if resolution or joining breaks.
+pub fn mock_project_issues_by_version() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/projects/[^/]+/issues\.json.*"))
+        .and(query_param("fixed_version_id", "116|117"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issues": [
+                {
+                    "id": 123,
+                    "subject": "Test Issue",
+                    "project": {"id": 10, "name": "Test Project"},
+                    "status": {"id": 1, "name": "New"},
+                    "priority": {"id": 2, "name": "Normal"},
+                    "fixed_version": {"id": 116, "name": "Milestone 1"},
+                    "updated_on": "2024-01-15T12:00:00Z"
+                }
+            ],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
+/// Create a mock for updating an issue; requires `fixed_version_id` in the body.
+pub fn mock_issue_update_version(version_id: u32) -> Mock {
+    Mock::given(method("PUT"))
+        .and(path_regex(r"/issues/\d+\.json"))
+        .and(body_partial_json(
+            serde_json::json!({"issue": {"fixed_version_id": version_id}}),
+        ))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(204))
 }
 
 /// Create a mock for time entries list endpoint.

@@ -4,6 +4,7 @@ use super::attachment::{format_bytes, Attachment, AttachmentRef};
 use super::custom_field::{CustomField, CustomFieldValue};
 use super::project::ProjectRef;
 use super::user::User;
+use super::version::VersionRef;
 use crate::output::{
     markdown::{markdown_kv_table, markdown_table, pagination_hint},
     MarkdownOutput, Meta,
@@ -72,6 +73,9 @@ pub struct Issue {
     pub author: Option<User>,
     #[serde(default)]
     pub assigned_to: Option<User>,
+    /// Target version.
+    #[serde(default)]
+    pub fixed_version: Option<VersionRef>,
     #[serde(default)]
     pub start_date: Option<String>,
     #[serde(default)]
@@ -160,6 +164,8 @@ pub struct UpdateIssue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assigned_to_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub fixed_version_id: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
@@ -206,6 +212,13 @@ impl MarkdownOutput for Issue {
 
         if let Some(author) = &self.author {
             pairs.push(("Author", author.name.clone()));
+        }
+
+        if let Some(version) = &self.fixed_version {
+            pairs.push((
+                "Target Version",
+                format!("{} (#{})", version.name, version.id),
+            ));
         }
 
         if let Some(start) = &self.start_date {
@@ -320,7 +333,15 @@ impl MarkdownOutput for IssueList {
             return output;
         }
 
-        let headers = &["ID", "Subject", "Status", "Priority", "Assignee", "Updated"];
+        let headers = &[
+            "ID",
+            "Subject",
+            "Status",
+            "Priority",
+            "Assignee",
+            "Target Version",
+            "Updated",
+        ];
         let rows: Vec<Vec<String>> = self
             .issues
             .iter()
@@ -333,6 +354,10 @@ impl MarkdownOutput for IssueList {
                     i.assigned_to
                         .as_ref()
                         .map(|u| u.name.clone())
+                        .unwrap_or_else(|| "-".to_string()),
+                    i.fixed_version
+                        .as_ref()
+                        .map(|v| v.name.clone())
                         .unwrap_or_else(|| "-".to_string()),
                     i.updated_on.clone().unwrap_or_else(|| "-".to_string()),
                 ]

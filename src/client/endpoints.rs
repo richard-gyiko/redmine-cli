@@ -292,6 +292,31 @@ impl RedmineClient {
         Ok(wrapper.project)
     }
 
+    // === Versions ===
+
+    /// List versions available to a project (including shared ones).
+    pub async fn list_versions(&self, project: &str) -> Result<VersionList> {
+        if self.dry_run {
+            return Ok(VersionList {
+                versions: vec![],
+                total_count: Some(0),
+            });
+        }
+
+        let path = format!("/projects/{}/versions.json", urlencoding::encode(project));
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Project",
+                project,
+                "Use `rdm project list` to see available projects.",
+            ));
+        }
+
+        Self::parse_json(response).await
+    }
+
     // === Issues ===
 
     /// List issues with optional filters.
@@ -330,6 +355,17 @@ impl RedmineClient {
         }
         if let Some(tracker) = &filters.tracker {
             params.push(format!("tracker_id={}", tracker));
+        }
+        if !filters.fixed_versions.is_empty() {
+            let ids: Vec<String> = filters
+                .fixed_versions
+                .iter()
+                .map(|v| v.to_string())
+                .collect();
+            params.push(format!(
+                "fixed_version_id={}",
+                urlencoding::encode(&ids.join("|"))
+            ));
         }
         if let Some(subject) = &filters.subject {
             params.push(format!("subject={}", urlencoding::encode(subject)));
@@ -777,6 +813,7 @@ pub struct IssueFilters {
     pub assigned_to: Option<String>,
     pub author: Option<String>,
     pub tracker: Option<String>,
+    pub fixed_versions: Vec<u32>,
     pub subject: Option<String>,
     pub query_id: Option<u32>,
     pub custom_fields: Vec<(u32, String)>,
