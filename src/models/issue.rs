@@ -377,10 +377,12 @@ impl MarkdownOutput for IssueList {
 }
 
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let keep = max_len.saturating_sub(3);
+        let truncated: String = s.chars().take(keep).collect();
+        format!("{truncated}...")
     }
 }
 
@@ -408,4 +410,30 @@ pub struct SearchResults {
     pub offset: Option<u32>,
     #[serde(default)]
     pub limit: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate;
+
+    #[test]
+    fn truncate_short_string_is_unchanged() {
+        assert_eq!(truncate("hello", 40), "hello");
+    }
+
+    #[test]
+    fn truncate_ascii_adds_ellipsis() {
+        assert_eq!(truncate("abcdefghij", 8), "abcde...");
+    }
+
+    #[test]
+    fn truncate_multibyte_on_boundary_does_not_panic() {
+        // Accented letters occupy two bytes each, so a byte-based slice at the
+        // truncation boundary would split one and panic. A string longer than
+        // max_len must truncate on a char boundary instead.
+        let s = "é".repeat(50);
+        let out = truncate(&s, 40);
+        assert!(out.ends_with("..."));
+        assert_eq!(out.chars().count(), 40);
+    }
 }
