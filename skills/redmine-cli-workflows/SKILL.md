@@ -40,6 +40,7 @@ Use this skill when the user needs any of these:
 - confirm Redmine connectivity or auth
 - inspect current user or active config
 - list, get, create, or update issues
+- filter or set an issue's target version (milestone), or list a project's versions
 - list, get, create, update, delete, or group time entries
 - run saved (custom) queries for issues or time entries
 - resolve project or user IDs before a write
@@ -69,6 +70,7 @@ Core command groups:
 - Issues: `issue list`, `issue get`, `issue create`, `issue update`
 - Time: `time list`, `time get`, `time create`, `time update`, `time delete`, `time activities list`
 - Queries: `query list` (add `--type time` for time-entry queries)
+- Versions: `version list --project <id>`
 - Users: `user list`, `user me`
 
 Configuration precedence:
@@ -146,6 +148,16 @@ rdm time list --query-id 112 --project 113
 ```
 
 Important: a project-scoped query (scope shown as `project <id>` in `query list`) only resolves when you also pass `--project <id>`; without it the API returns 404. Global queries (scope `global`) run without `--project`. Query type is fixed at save time: use `--query-id` on `issue list` for issue queries and on `time list` for time-entry queries.
+
+### Work with target versions (milestones)
+
+```bash
+rdm version list --project backend
+rdm issue list --project backend --version "Milestone 1,Milestone 2" --status '*'
+rdm issue update --id 123 --version "Milestone 2"
+```
+
+Issues expose their target version as `fixed_version` (`{id, name}`) in JSON. `--version` accepts IDs or names, repeatable or comma-separated. Names on `issue list` resolve within `--project` (required for names); on `issue update` they resolve within the issue's own project. IDs work anywhere.
 
 ### Create or update an issue
 

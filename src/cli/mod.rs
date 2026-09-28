@@ -7,6 +7,7 @@ pub mod project;
 pub mod query;
 pub mod time;
 pub mod user;
+pub mod version;
 
 use crate::error::{AppError, Result};
 use crate::output::OutputFormat;
@@ -102,4 +103,8 @@ pub enum Command {
     /// User commands.
     #[command(subcommand)]
     User(user::UserCommand),
+
+    /// Version (target version / milestone) commands.
+    #[command(subcommand)]
+    Version(version::VersionCommand),
 }

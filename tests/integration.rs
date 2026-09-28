@@ -147,6 +147,166 @@ async fn test_issue_list_query_id_project_scoped() {
         .stdout(predicate::str::contains("Test Issue"));
 }
 
+#[tokio::test]
+async fn test_issue_get_shows_target_version() {
+    let server = start_mock_server().await;
+    mock_issue_get().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("get")
+        .args(["--id", "123"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Target Version"))
+        .stdout(predicate::str::contains("Milestone 1 (#116)"));
+}
+
+#[tokio::test]
+async fn test_issue_get_json_includes_fixed_version() {
+    let server = start_mock_server().await;
+    mock_issue_get().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["--format", "json"])
+        .arg("issue")
+        .arg("get")
+        .args(["--id", "123"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"fixed_version\""))
+        .stdout(predicate::str::contains("\"name\": \"Milestone 1\""));
+}
+
+#[tokio::test]
+async fn test_issue_list_version_filter_by_name_and_id() {
+    // Names resolve via the project's versions, mix with IDs, and join with `|`.
+    let server = start_mock_server().await;
+    mock_versions_list().mount(&server).await;
+    mock_project_issues_by_version().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("list")
+        .args(["--project", "10", "--version", "milestone 1,117"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Target Version"))
+        .stdout(predicate::str::contains("Milestone 1"));
+}
+
+#[tokio::test]
+async fn test_issue_list_version_name_requires_project() {
+    let server = start_mock_server().await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("list")
+        .args(["--version", "Milestone 1"]);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("without a project"));
+}
+
+#[tokio::test]
+async fn test_issue_list_version_unknown_name() {
+    let server = start_mock_server().await;
+    mock_versions_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("list")
+        .args(["--project", "10", "--version", "Milestone 9"]);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("Milestone 9"));
+}
+
+#[tokio::test]
+async fn test_issue_update_version_by_name() {
+    // A name resolves within the issue's project, then is sent as fixed_version_id.
+    let server = start_mock_server().await;
+    mock_issue_get().mount(&server).await;
+    mock_versions_list().mount(&server).await;
+    mock_issue_update_version(117).mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("update")
+        .args(["--id", "123", "--version", "Milestone 2"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Issue #123 has been updated"));
+}
+
+#[tokio::test]
+async fn test_issue_update_version_by_id() {
+    let server = start_mock_server().await;
+    mock_issue_update_version(116).mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("issue")
+        .arg("update")
+        .args(["--id", "123", "--version", "116"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Issue #123 has been updated"));
+}
+
+// ============================================================================
+// Version Commands
+// ============================================================================
+
+#[tokio::test]
+async fn test_version_list() {
+    let server = start_mock_server().await;
+    mock_versions_list().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .arg("version")
+        .arg("list")
+        .args(["--project", "10"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Milestone 1"))
+        .stdout(predicate::str::contains("Milestone 2"))
+        .stdout(predicate::str::contains("116"))
+        .stdout(predicate::str::contains("2024-03-01"))
+        .stdout(predicate::str::contains("closed"));
+}
+
 // ============================================================================
 // Query Commands
 // ============================================================================

@@ -160,6 +160,7 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 - `--assigned-to <me|id>` - Filter by assignee
 - `--author <me|id>` - Filter by author
 - `--tracker <id>` - Filter by tracker
+- `--version <id|name>` - Filter by target version (repeatable or comma-separated; names resolve within `--project`)
 - `--subject <text>` - Filter by exact subject match
 - `--search <text>` - Search issues by text (subject/description)
 - `--query-id <id>` - Run a saved query (see `rdm query list`); add `--project` for a project-scoped query
@@ -173,6 +174,14 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 | `rdm query list --type time` | List saved time-entry queries |
 
 Run a saved query via `--query-id` on `issue list` or `time list`. Project-scoped queries also require `--project <id>` (Redmine resolves the query against the project in the URL path).
+
+### Versions
+
+| Command | Description |
+|---------|-------------|
+| `rdm version list --project <id>` | List a project's versions (target versions / milestones), including shared ones |
+
+Set an issue's target version with `rdm issue update --id <id> --version <id|name>` (names resolve within the issue's project).
 
 ### Time Entries
 
@@ -408,6 +417,20 @@ rdm issue list --query-id 40
 # Run a project-scoped saved query (requires --project)
 rdm issue list --query-id 5 --project 10
 rdm time list --query-id 112 --project 113
+```
+
+### Filter issues by target version
+
+```bash
+# Find version IDs and names
+rdm version list --project backend
+
+# By name or ID (repeatable or comma-separated)
+rdm issue list --project backend --version "Milestone 1,Milestone 2" --status '*'
+rdm issue list --version 116 --version 117
+
+# Move an issue to a version
+rdm issue update --id 123 --version "Milestone 2"
 ```
 
 ### Filter issues by custom field
