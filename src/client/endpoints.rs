@@ -373,6 +373,9 @@ impl RedmineClient {
         if let Some(query_id) = filters.query_id {
             params.push(format!("query_id={}", query_id));
         }
+        if filters.include_relations {
+            params.push("include=relations".to_string());
+        }
         // Add custom field filters
         for (cf_id, cf_value) in &filters.custom_fields {
             params.push(format!("cf_{}={}", cf_id, urlencoding::encode(cf_value)));
@@ -391,7 +394,7 @@ impl RedmineClient {
             ));
         }
 
-        let path = format!("/issues/{}.json?include=journals,attachments", id);
+        let path = format!("/issues/{}.json?include=journals,attachments,relations", id);
         let response = self.execute(self.request(Method::GET, &path)).await?;
         let status = response.status();
 
@@ -541,6 +544,86 @@ impl RedmineClient {
             offset: search_results.offset,
             limit: search_results.limit,
         })
+    }
+
+    // === Relations ===
+
+    /// List relations of an issue.
+    pub async fn list_relations(&self, issue_id: u32) -> Result<Vec<Relation>> {
+        if self.dry_run {
+            return Ok(vec![]);
+        }
+
+        let path = format!("/issues/{}/relations.json", issue_id);
+        let response = self.execute(self.request(Method::GET, &path)).await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Issue",
+                issue_id.to_string(),
+                "Use `rdm issue list` to find available issues.",
+            ));
+        }
+
+        let wrapper: RelationsResponse = Self::parse_json(response).await?;
+        Ok(wrapper.relations)
+    }
+
+    /// Create a relation from `issue_id` to another issue.
+    pub async fn create_relation(&self, issue_id: u32, relation: NewRelation) -> Result<Relation> {
+        let body = NewRelationRequest { relation };
+        if self.dry_run {
+            let json = serde_json::to_string_pretty(&body)
+                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
+            println!("DRY RUN: POST /issues/{}/relations.json", issue_id);
+            println!("{}", json);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let path = format!("/issues/{}/relations.json", issue_id);
+        let request = self.request(Method::POST, &path).json(&body);
+        let response = self.execute(request).await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Issue",
+                issue_id.to_string(),
+                "Use `rdm issue list` to find available issues.",
+            ));
+        }
+
+        let wrapper: RelationResponse = Self::parse_json(response).await?;
+        Ok(wrapper.relation)
+    }
+
+    /// Delete a relation by ID.
+    pub async fn delete_relation(&self, id: u32) -> Result<()> {
+        if self.dry_run {
+            println!("DRY RUN: DELETE /relations/{}.json", id);
+            return Err(AppError::validation("Dry run - no request sent"));
+        }
+
+        let path = format!("/relations/{}.json", id);
+        let response = self.execute(self.request(Method::DELETE, &path)).await?;
+        let status = response.status();
+
+        if status == StatusCode::NOT_FOUND {
+            return Err(AppError::not_found_with_hint(
+                "Relation",
+                id.to_string(),
+                "Use `rdm issue relation list --id <ISSUE>` to find relations.",
+            ));
+        }
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::api(
+                format!("Failed to delete relation: {}", body),
+                Some(status.as_u16()),
+            ));
+        }
+
+        Ok(())
     }
 
     // === Attachments ===
@@ -817,6 +900,8 @@ pub struct IssueFilters {
     pub subject: Option<String>,
     pub query_id: Option<u32>,
     pub custom_fields: Vec<(u32, String)>,
+    /// Ask Redmine to embed each issue's relations (`include=relations`).
+    pub include_relations: bool,
     pub limit: u32,
     pub offset: u32,
 }

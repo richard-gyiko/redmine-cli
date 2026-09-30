@@ -5,6 +5,7 @@ mod custom_field;
 mod issue;
 mod project;
 mod query;
+mod relation;
 mod time_entry;
 mod user;
 mod version;
@@ -18,13 +19,19 @@ pub use attachment::{
 #[allow(unused_imports)]
 pub use custom_field::{CustomField, CustomFieldValue};
 pub use issue::{
-    Issue, IssueList, IssueResponse, NewIssue, NewIssueRequest, UpdateIssue, UpdateIssueRequest,
+    Issue, IssueList, IssueResponse, NewIssue, NewIssueRequest, ParentIssue, UpdateIssue,
+    UpdateIssueRequest,
 };
 // Re-export for internal use by client/endpoints.rs
 pub(crate) use issue::SearchResults;
 pub use project::{Project, ProjectList, ProjectResponse};
 #[allow(unused_imports)]
 pub use query::{Query, QueryList};
+#[allow(unused_imports)]
+pub use relation::{
+    IssueRef, NewRelation, NewRelationRequest, Relation, RelationCreated, RelationDeleted,
+    RelationList, RelationResponse, RelationsResponse,
+};
 pub use time_entry::{
     Activity, ActivityList, GroupByField, GroupedTimeEntries, NewTimeEntry, NewTimeEntryRequest,
     TimeEntry, TimeEntryCreated, TimeEntryDeleted, TimeEntryList, TimeEntryResponse,

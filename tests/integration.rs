@@ -572,3 +572,224 @@ fn test_profile_list_empty() {
         .success()
         .stdout(predicate::str::contains("No profiles"));
 }
+
+// ============================================================================
+// Relations and parent
+// ============================================================================
+
+fn rdm(server: &wiremock::MockServer) -> Command {
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"]);
+    cmd
+}
+
+fn json_stdout(cmd: &mut Command) -> serde_json::Value {
+    let out = cmd.output().expect("run rdm");
+    assert!(out.status.success(), "rdm failed: {:?}", out);
+    serde_json::from_slice(&out.stdout).expect("json stdout")
+}
+
+#[tokio::test]
+async fn test_issue_get_json_includes_parent_and_relations() {
+    let server = start_mock_server().await;
+    mock_issue_get_with_relations().mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args(["--format", "json", "issue", "get", "--id", "123"]));
+    let issue = &json["data"];
+    assert_eq!(issue["parent"], serde_json::json!({"id": 100}));
+    assert_eq!(
+        issue["relations"][0],
+        serde_json::json!({
+            "id": 1, "issue_id": 123, "issue_to_id": 124,
+            "relation_type": "blocks", "delay": null
+        })
+    );
+    assert_eq!(issue["relations"][1]["delay"], 2);
+}
+
+#[tokio::test]
+async fn test_issue_get_markdown_shows_parent_and_relations() {
+    let server = start_mock_server().await;
+    mock_issue_get_with_relations().mount(&server).await;
+
+    rdm(&server)
+        .args(["issue", "get", "--id", "123"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("| Parent | #100 |"))
+        .stdout(predicate::str::contains("### Relations"))
+        .stdout(predicate::str::contains("- blocks #124 (relation #1)"))
+        .stdout(predicate::str::contains(
+            "- follows #120 (delay 2d) (relation #2)",
+        ));
+}
+
+#[tokio::test]
+async fn test_issue_list_json_omits_parent_and_relations_when_absent() {
+    let server = start_mock_server().await;
+    mock_issues_list().mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args(["--format", "json", "issue", "list"]));
+    let issue = &json["data"]["issues"][0];
+    assert!(issue.get("parent").is_none());
+    assert!(issue.get("relations").is_none());
+}
+
+#[tokio::test]
+async fn test_issue_list_include_relations() {
+    let server = start_mock_server().await;
+    mock_issues_list_with_relations().mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format",
+        "json",
+        "issue",
+        "list",
+        "--include-relations",
+    ]));
+    let issue = &json["data"]["issues"][0];
+    assert_eq!(issue["parent"]["id"], 100);
+    assert_eq!(issue["relations"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_issue_relation_list() {
+    let server = start_mock_server().await;
+    mock_relations_list().mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format", "json", "issue", "relation", "list", "--id", "123",
+    ]));
+    assert_eq!(json["data"]["issue_id"], 123);
+    assert_eq!(json["data"]["relations"][1]["relation_type"], "precedes");
+
+    rdm(&server)
+        .args(["issue", "relation", "list", "--id", "123"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Relations for Issue #123 (2)"))
+        .stdout(predicate::str::contains("blocked by").not())
+        .stdout(predicate::str::contains("follows #120"));
+}
+
+#[tokio::test]
+async fn test_issue_relation_add() {
+    let server = start_mock_server().await;
+    mock_relation_create(serde_json::json!({
+        "relation": {"issue_to_id": 124, "relation_type": "precedes", "delay": 2}
+    }))
+    .mount(&server)
+    .await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format", "json", "issue", "relation", "add", "--id", "123", "--to", "124", "--type",
+        "precedes", "--delay", "2",
+    ]));
+    assert_eq!(json["data"]["relation"]["id"], 9);
+}
+
+#[tokio::test]
+async fn test_issue_relation_add_snake_case_type() {
+    let server = start_mock_server().await;
+    mock_relation_create(serde_json::json!({
+        "relation": {"issue_to_id": 124, "relation_type": "copied_to"}
+    }))
+    .mount(&server)
+    .await;
+
+    rdm(&server)
+        .args([
+            "issue",
+            "relation",
+            "add",
+            "--id",
+            "123",
+            "--to",
+            "124",
+            "--type",
+            "copied_to",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Relation Created"));
+}
+
+#[tokio::test]
+async fn test_issue_relation_add_rejects_unknown_type() {
+    let server = start_mock_server().await;
+    rdm(&server)
+        .args([
+            "issue", "relation", "add", "--id", "123", "--to", "124", "--type", "depends",
+        ])
+        .assert()
+        .failure();
+}
+
+#[tokio::test]
+async fn test_issue_relation_remove() {
+    let server = start_mock_server().await;
+    mock_relation_delete().mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format",
+        "json",
+        "issue",
+        "relation",
+        "remove",
+        "--relation-id",
+        "9",
+    ]));
+    assert_eq!(
+        json["data"],
+        serde_json::json!({"relation_id": 9, "deleted": true})
+    );
+}
+
+#[tokio::test]
+async fn test_issue_update_parent_set() {
+    let server = start_mock_server().await;
+    mock_issue_update_parent(serde_json::json!(100))
+        .mount(&server)
+        .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--parent", "100"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Issue #123 has been updated"));
+}
+
+#[tokio::test]
+async fn test_issue_update_parent_clear() {
+    let server = start_mock_server().await;
+    mock_issue_update_parent(serde_json::json!(""))
+        .mount(&server)
+        .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--parent", "none"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn test_issue_create_with_parent() {
+    let server = start_mock_server().await;
+    mock_issue_create_with_parent(100).mount(&server).await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format",
+        "json",
+        "issue",
+        "create",
+        "--project",
+        "1",
+        "--subject",
+        "Child",
+        "--parent",
+        "100",
+    ]));
+    assert_eq!(json["data"]["issue"]["parent"]["id"], 100);
+}

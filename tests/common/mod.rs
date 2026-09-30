@@ -349,3 +349,121 @@ pub fn mock_time_entry_delete() -> Mock {
         .and(header("X-Redmine-API-Key", "test-api-key"))
         .respond_with(ResponseTemplate::new(200))
 }
+
+/// Relations fixture for issue 123: it blocks #124, and #120 precedes it.
+fn relations_fixture() -> serde_json::Value {
+    serde_json::json!([
+        {"id": 1, "issue_id": 123, "issue_to_id": 124, "relation_type": "blocks", "delay": null},
+        {"id": 2, "issue_id": 120, "issue_to_id": 123, "relation_type": "precedes", "delay": 2}
+    ])
+}
+
+/// Create a mock for getting an issue with a parent and relations.
+///
+/// Requires `include=journals,attachments,relations` so the test fails if the
+/// CLI stops asking for relations.
+pub fn mock_issue_get_with_relations() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/issues/\d+\.json"))
+        .and(query_param("include", "journals,attachments,relations"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issue": {
+                "id": 123,
+                "subject": "Test Issue",
+                "project": {"id": 1, "name": "Test Project"},
+                "status": {"id": 1, "name": "New"},
+                "priority": {"id": 2, "name": "Normal"},
+                "parent": {"id": 100},
+                "relations": relations_fixture()
+            }
+        })))
+}
+
+/// Create a mock for an issues list; requires `include=relations`.
+pub fn mock_issues_list_with_relations() -> Mock {
+    Mock::given(method("GET"))
+        .and(path("/issues.json"))
+        .and(query_param("include", "relations"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issues": [
+                {
+                    "id": 123,
+                    "subject": "Test Issue",
+                    "project": {"id": 1, "name": "Test Project"},
+                    "status": {"id": 1, "name": "New"},
+                    "priority": {"id": 2, "name": "Normal"},
+                    "parent": {"id": 100},
+                    "relations": relations_fixture()
+                }
+            ],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
+/// Create a mock for listing an issue's relations.
+pub fn mock_relations_list() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/issues/\d+/relations\.json"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "relations": relations_fixture() })),
+        )
+}
+
+/// Create a mock for creating a relation; requires the given request body.
+pub fn mock_relation_create(body: serde_json::Value) -> Mock {
+    Mock::given(method("POST"))
+        .and(path("/issues/123/relations.json"))
+        .and(body_partial_json(body))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "relation": {
+                "id": 9, "issue_id": 123, "issue_to_id": 124,
+                "relation_type": "precedes", "delay": 2
+            }
+        })))
+}
+
+/// Create a mock for deleting relation 9.
+pub fn mock_relation_delete() -> Mock {
+    Mock::given(method("DELETE"))
+        .and(path("/relations/9.json"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(204))
+}
+
+/// Create a mock for updating an issue; requires the given `parent_issue_id`.
+pub fn mock_issue_update_parent(parent: serde_json::Value) -> Mock {
+    Mock::given(method("PUT"))
+        .and(path_regex(r"/issues/\d+\.json"))
+        .and(body_partial_json(
+            serde_json::json!({"issue": {"parent_issue_id": parent}}),
+        ))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(204))
+}
+
+/// Create a mock for creating an issue; requires `parent_issue_id`.
+pub fn mock_issue_create_with_parent(parent: u32) -> Mock {
+    Mock::given(method("POST"))
+        .and(path("/issues.json"))
+        .and(body_partial_json(
+            serde_json::json!({"issue": {"parent_issue_id": parent}}),
+        ))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "issue": {
+                "id": 125,
+                "subject": "Child",
+                "project": {"id": 1, "name": "Test Project"},
+                "status": {"id": 1, "name": "New"},
+                "priority": {"id": 2, "name": "Normal"},
+                "parent": {"id": parent}
+            }
+        })))
+}
