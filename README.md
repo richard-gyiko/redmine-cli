@@ -153,6 +153,9 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 | `rdm issue get` | Get issue details |
 | `rdm issue create` | Create a new issue |
 | `rdm issue update` | Update an existing issue |
+| `rdm issue relation list --id <id>` | List an issue's relations |
+| `rdm issue relation add --id <id> --to <id> --type <type> [--delay <days>]` | Add a relation |
+| `rdm issue relation remove --relation-id <id>` | Remove a relation |
 
 **Issue list filters:**
 - `--project <id>` - Filter by project
@@ -165,6 +168,15 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 - `--search <text>` - Search issues by text (subject/description)
 - `--query-id <id>` - Run a saved query (see `rdm query list`); add `--project` for a project-scoped query
 - `--cf <id>=<value>` - Filter by custom field (repeatable)
+- `--include-relations` - Embed each issue's `relations` in the output
+
+### Relations and parent issues
+
+`rdm issue get` includes the issue's `parent` (`{id}`, when set) and `relations` (`[{id, issue_id, issue_to_id, relation_type, delay}]`, Redmine's shape). `issue list` always carries `parent`; add `--include-relations` for `relations`.
+
+Relation types: `relates`, `duplicates`, `duplicated`, `blocks`, `blocked`, `precedes`, `follows`, `copied_to`, `copied_from`. `--delay` applies to `precedes`/`follows`.
+
+Set a parent with `rdm issue create --parent <id>` or `rdm issue update --id <id> --parent <id>`; clear it with `--parent none`.
 
 ### Saved Queries
 

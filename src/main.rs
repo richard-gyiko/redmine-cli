@@ -156,7 +156,7 @@ async fn execute_command(
         }
 
         Command::Issue(cmd) => {
-            use cli::issue::{AttachmentCommand, IssueCommand};
+            use cli::issue::{AttachmentCommand, IssueCommand, RelationCommand};
             match cmd {
                 IssueCommand::List(args) => {
                     let result = cli::issue::list(client, args).await?;
@@ -190,6 +190,20 @@ async fn execute_command(
                     }
                     AttachmentCommand::Upload(args) => {
                         let result = cli::issue::attachment_upload(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                },
+                IssueCommand::Relation(cmd) => match cmd {
+                    RelationCommand::List(args) => {
+                        let result = cli::issue::relation_list(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                    RelationCommand::Add(args) => {
+                        let result = cli::issue::relation_add(client, args).await?;
+                        Ok(format.format_success(result, Meta::default()))
+                    }
+                    RelationCommand::Remove(args) => {
+                        let result = cli::issue::relation_remove(client, args).await?;
                         Ok(format.format_success(result, Meta::default()))
                     }
                 },

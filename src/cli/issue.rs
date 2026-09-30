@@ -1,6 +1,6 @@
 //! Issue commands.
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -11,7 +11,8 @@ use crate::error::{AppError, Result};
 use crate::models::{
     attachment::{guess_content_type, AttachmentRef},
     AttachmentDownloaded, AttachmentList, AttachmentUploaded, CustomFieldValue, Issue, IssueList,
-    NewIssue, UpdateIssue,
+    NewIssue, NewRelation, ParentIssue, RelationCreated, RelationDeleted, RelationList,
+    UpdateIssue,
 };
 use crate::output::{markdown::markdown_kv_table, MarkdownOutput, Meta};
 
@@ -28,6 +29,82 @@ pub enum IssueCommand {
     /// Attachment commands.
     #[command(subcommand)]
     Attachment(AttachmentCommand),
+    /// Relation commands (blocks, precedes, relates, ...).
+    #[command(subcommand)]
+    Relation(RelationCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RelationCommand {
+    /// List relations of an issue.
+    List(RelationListArgs),
+    /// Add a relation from an issue to another issue.
+    Add(RelationAddArgs),
+    /// Remove a relation by its relation ID.
+    Remove(RelationRemoveArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct RelationListArgs {
+    /// Issue ID.
+    #[arg(long)]
+    pub id: u32,
+}
+
+/// Redmine relation type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RelationType {
+    Relates,
+    Duplicates,
+    Duplicated,
+    Blocks,
+    Blocked,
+    Precedes,
+    Follows,
+    #[value(name = "copied_to", alias = "copied-to")]
+    CopiedTo,
+    #[value(name = "copied_from", alias = "copied-from")]
+    CopiedFrom,
+}
+
+impl RelationType {
+    /// Redmine API value.
+    pub fn as_api(self) -> &'static str {
+        match self {
+            Self::Relates => "relates",
+            Self::Duplicates => "duplicates",
+            Self::Duplicated => "duplicated",
+            Self::Blocks => "blocks",
+            Self::Blocked => "blocked",
+            Self::Precedes => "precedes",
+            Self::Follows => "follows",
+            Self::CopiedTo => "copied_to",
+            Self::CopiedFrom => "copied_from",
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct RelationAddArgs {
+    /// Source issue ID.
+    #[arg(long)]
+    pub id: u32,
+    /// Target issue ID.
+    #[arg(long)]
+    pub to: u32,
+    /// Relation type (from the source issue's perspective).
+    #[arg(long = "type", value_enum)]
+    pub relation_type: RelationType,
+    /// Delay in days (only for precedes/follows).
+    #[arg(long, allow_hyphen_values = true)]
+    pub delay: Option<i32>,
+}
+
+#[derive(Debug, Args)]
+pub struct RelationRemoveArgs {
+    /// Relation ID (see `rdm issue relation list --id <ISSUE>`).
+    #[arg(long)]
+    pub relation_id: u32,
 }
 
 #[derive(Debug, Subcommand)]
@@ -107,6 +184,9 @@ pub struct IssueListArgs {
     /// Filter by custom field value (format: id=value, repeatable).
     #[arg(long = "cf", value_name = "ID=VALUE")]
     pub custom_fields: Vec<String>,
+    /// Include each issue's relations in the output (`include=relations`).
+    #[arg(long)]
+    pub include_relations: bool,
     /// Maximum number of results.
     #[arg(long, default_value = "25")]
     pub limit: u32,
@@ -154,6 +234,9 @@ pub struct IssueCreateArgs {
     /// Estimated hours.
     #[arg(long)]
     pub estimated_hours: Option<f64>,
+    /// Parent issue ID.
+    #[arg(long)]
+    pub parent: Option<u32>,
     /// Set custom field value (format: id=value, repeatable).
     #[arg(long = "cf", value_name = "ID=VALUE")]
     pub custom_fields: Vec<String>,
@@ -182,6 +265,9 @@ pub struct IssueUpdateArgs {
     /// New target version (ID or name within the issue's project).
     #[arg(long, value_name = "ID|NAME")]
     pub version: Option<String>,
+    /// New parent issue ID, or `none` to remove the parent.
+    #[arg(long, value_name = "ID|none", value_parser = ParentIssue::parse)]
+    pub parent: Option<ParentIssue>,
     /// Done percentage (0-100).
     #[arg(long)]
     pub done_ratio: Option<u32>,
@@ -262,6 +348,7 @@ pub async fn list(client: &RedmineClient, args: &IssueListArgs) -> Result<IssueL
         subject: args.subject.clone(),
         query_id: args.query_id,
         custom_fields,
+        include_relations: args.include_relations,
         limit: args.limit,
         offset: args.offset,
     };
@@ -296,6 +383,7 @@ pub async fn create(client: &RedmineClient, args: &IssueCreateArgs) -> Result<Is
         start_date: args.start_date.clone(),
         due_date: args.due_date.clone(),
         estimated_hours: args.estimated_hours,
+        parent_issue_id: args.parent,
         custom_fields,
     };
 
@@ -329,6 +417,7 @@ pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<Is
         priority_id: args.priority,
         assigned_to_id: args.assigned_to,
         fixed_version_id,
+        parent_issue_id: args.parent,
         done_ratio: args.done_ratio,
         notes: args.notes.clone(),
         custom_fields,
@@ -337,6 +426,44 @@ pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<Is
 
     client.update_issue(args.id, update).await?;
     Ok(IssueUpdated { id: args.id })
+}
+
+/// List relations of an issue.
+pub async fn relation_list(
+    client: &RedmineClient,
+    args: &RelationListArgs,
+) -> Result<RelationList> {
+    let relations = client.list_relations(args.id).await?;
+    Ok(RelationList {
+        issue_id: args.id,
+        relations,
+    })
+}
+
+/// Add a relation between two issues.
+pub async fn relation_add(
+    client: &RedmineClient,
+    args: &RelationAddArgs,
+) -> Result<RelationCreated> {
+    let relation = NewRelation {
+        issue_to_id: args.to,
+        relation_type: args.relation_type.as_api().to_string(),
+        delay: args.delay,
+    };
+    let relation = client.create_relation(args.id, relation).await?;
+    Ok(RelationCreated { relation })
+}
+
+/// Remove a relation.
+pub async fn relation_remove(
+    client: &RedmineClient,
+    args: &RelationRemoveArgs,
+) -> Result<RelationDeleted> {
+    client.delete_relation(args.relation_id).await?;
+    Ok(RelationDeleted {
+        relation_id: args.relation_id,
+        deleted: true,
+    })
 }
 
 /// List attachments on an issue.

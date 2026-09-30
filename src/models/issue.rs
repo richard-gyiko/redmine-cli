@@ -3,6 +3,7 @@
 use super::attachment::{format_bytes, Attachment, AttachmentRef};
 use super::custom_field::{CustomField, CustomFieldValue};
 use super::project::ProjectRef;
+use super::relation::{IssueRef, Relation};
 use super::user::User;
 use super::version::VersionRef;
 use crate::output::{
@@ -76,6 +77,9 @@ pub struct Issue {
     /// Target version.
     #[serde(default)]
     pub fixed_version: Option<VersionRef>,
+    /// Parent issue (omitted when the issue has no parent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<IssueRef>,
     #[serde(default)]
     pub start_date: Option<String>,
     #[serde(default)]
@@ -96,6 +100,9 @@ pub struct Issue {
     pub journals: Option<Vec<Journal>>,
     #[serde(default)]
     pub attachments: Option<Vec<Attachment>>,
+    /// Relations (present when requested via `include=relations`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relations: Option<Vec<Relation>>,
 }
 
 /// List of issues from API.
@@ -137,6 +144,8 @@ pub struct NewIssue {
     pub due_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub estimated_hours: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_issue_id: Option<u32>,
     /// Custom field values for the issue.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_fields: Option<Vec<CustomFieldValue>>,
@@ -165,6 +174,9 @@ pub struct UpdateIssue {
     pub assigned_to_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed_version_id: Option<u32>,
+    /// Set or clear the parent issue.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_issue_id: Option<ParentIssue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,6 +193,41 @@ pub struct UpdateIssue {
     /// Attachments to add (upload tokens).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uploads: Option<Vec<AttachmentRef>>,
+}
+
+/// Parent issue change for an update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParentIssue {
+    /// Set the parent to this issue ID.
+    Set(u32),
+    /// Remove the parent. Redmine clears it on a blank `parent_issue_id`.
+    Clear,
+}
+
+impl ParentIssue {
+    /// Parse `<ID>`, `#<ID>`, or `none` (clear).
+    pub fn parse(value: &str) -> std::result::Result<Self, String> {
+        let v = value.trim();
+        if v.is_empty() || v.eq_ignore_ascii_case("none") {
+            return Ok(Self::Clear);
+        }
+        v.trim_start_matches('#')
+            .parse::<u32>()
+            .map(Self::Set)
+            .map_err(|_| format!("invalid parent '{}': expected an issue ID or 'none'", value))
+    }
+}
+
+impl Serialize for ParentIssue {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        match self {
+            Self::Set(id) => serializer.serialize_u32(*id),
+            Self::Clear => serializer.serialize_str(""),
+        }
+    }
 }
 
 /// Wrapper for issue update request.
@@ -219,6 +266,10 @@ impl MarkdownOutput for Issue {
                 "Target Version",
                 format!("{} (#{})", version.name, version.id),
             ));
+        }
+
+        if let Some(parent) = &self.parent {
+            pairs.push(("Parent", format!("#{}", parent.id)));
         }
 
         if let Some(start) = &self.start_date {
@@ -269,6 +320,19 @@ impl MarkdownOutput for Issue {
                 output.push_str("\n### Description\n\n");
                 output.push_str(desc);
                 output.push('\n');
+            }
+        }
+
+        if let Some(relations) = &self.relations {
+            if !relations.is_empty() {
+                output.push_str("\n### Relations\n\n");
+                for r in relations {
+                    output.push_str(&format!(
+                        "- {} (relation #{})\n",
+                        r.describe_from(self.id),
+                        r.id
+                    ));
+                }
             }
         }
 
@@ -414,7 +478,35 @@ pub struct SearchResults {
 
 #[cfg(test)]
 mod tests {
-    use super::truncate;
+    use super::{truncate, ParentIssue, UpdateIssue};
+
+    #[test]
+    fn parent_parse() {
+        assert_eq!(ParentIssue::parse("42"), Ok(ParentIssue::Set(42)));
+        assert_eq!(ParentIssue::parse("#42"), Ok(ParentIssue::Set(42)));
+        assert_eq!(ParentIssue::parse("none"), Ok(ParentIssue::Clear));
+        assert!(ParentIssue::parse("abc").is_err());
+    }
+
+    #[test]
+    fn parent_serializes_id_or_blank() {
+        let set = UpdateIssue {
+            parent_issue_id: Some(ParentIssue::Set(7)),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(set).unwrap(),
+            serde_json::json!({"parent_issue_id": 7})
+        );
+        let clear = UpdateIssue {
+            parent_issue_id: Some(ParentIssue::Clear),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(clear).unwrap(),
+            serde_json::json!({"parent_issue_id": ""})
+        );
+    }
 
     #[test]
     fn truncate_short_string_is_unchanged() {

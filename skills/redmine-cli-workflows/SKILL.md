@@ -41,6 +41,7 @@ Use this skill when the user needs any of these:
 - inspect current user or active config
 - list, get, create, or update issues
 - filter or set an issue's target version (milestone), or list a project's versions
+- read, add, or remove issue relations (blocks, precedes, relates, ...), or set/clear a parent issue
 - list, get, create, update, delete, or group time entries
 - run saved (custom) queries for issues or time entries
 - resolve project or user IDs before a write
@@ -68,6 +69,7 @@ Core command groups:
 - Profiles: `profile add`, `profile use`, `profile list`, `profile delete`
 - Projects: `project list`, `project get`
 - Issues: `issue list`, `issue get`, `issue create`, `issue update`
+- Relations: `issue relation list`, `issue relation add`, `issue relation remove`
 - Time: `time list`, `time get`, `time create`, `time update`, `time delete`, `time activities list`
 - Queries: `query list` (add `--type time` for time-entry queries)
 - Versions: `version list --project <id>`
@@ -158,6 +160,20 @@ rdm issue update --id 123 --version "Milestone 2"
 ```
 
 Issues expose their target version as `fixed_version` (`{id, name}`) in JSON. `--version` accepts IDs or names, repeatable or comma-separated. Names on `issue list` resolve within `--project` (required for names); on `issue update` they resolve within the issue's own project. IDs work anywhere.
+
+### Work with relations and parent issues
+
+```bash
+rdm issue relation list --id 123
+rdm issue relation add --id 123 --to 124 --type blocks
+rdm issue relation add --id 123 --to 125 --type precedes --delay 2
+rdm issue relation remove --relation-id 9
+rdm issue update --id 125 --parent 123
+rdm issue update --id 125 --parent none
+rdm issue list --project backend --include-relations --format json
+```
+
+`issue get` JSON includes `parent` (`{id}`, omitted when none) and `relations` (`[{id, issue_id, issue_to_id, relation_type, delay}]`). A relation is stored once: when `issue_to_id` is the issue you asked about, read it inversely (`blocks` from #120 to #123 means #123 is blocked by #120). Remove relations by relation `id`, not issue ID. Types: `relates`, `duplicates`, `duplicated`, `blocks`, `blocked`, `precedes`, `follows`, `copied_to`, `copied_from`.
 
 ### Create or update an issue
 
