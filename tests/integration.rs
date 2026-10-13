@@ -5,6 +5,7 @@ mod common;
 use assert_cmd::Command;
 use common::*;
 use predicates::prelude::*;
+use wiremock::ResponseTemplate;
 
 fn get_binary() -> Command {
     Command::cargo_bin("rdm").unwrap()
@@ -772,6 +773,46 @@ async fn test_issue_update_parent_clear() {
         .args(["issue", "update", "--id", "123", "--parent", "none"])
         .assert()
         .success();
+}
+
+#[tokio::test]
+async fn test_issue_update_tracker() {
+    let server = start_mock_server().await;
+    mock_issue_update(
+        serde_json::json!({"tracker_id": 2}),
+        ResponseTemplate::new(204),
+    )
+    .mount(&server)
+    .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--tracker", "2"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Issue #123 has been updated"));
+}
+
+#[tokio::test]
+async fn test_issue_update_tracker_not_enabled() {
+    let server = start_mock_server().await;
+    mock_issue_update(
+        serde_json::json!({"tracker_id": 9}),
+        ResponseTemplate::new(422)
+            .set_body_json(serde_json::json!({"errors": ["Tracker is not included in the list"]})),
+    )
+    .mount(&server)
+    .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--tracker", "9"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Tracker is not included in the list",
+        ))
+        .stderr(predicate::str::contains(
+            "Tracker 9 may not be enabled for this issue's project",
+        ));
 }
 
 #[tokio::test]

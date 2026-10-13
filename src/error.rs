@@ -200,7 +200,6 @@ impl AppError {
     }
 
     /// Create an API error with hint.
-    #[allow(dead_code)]
     pub fn api_with_hint(
         message: impl Into<String>,
         status: Option<u16>,
