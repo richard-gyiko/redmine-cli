@@ -229,15 +229,21 @@ pub fn mock_project_issues_by_version() -> Mock {
         })))
 }
 
-/// Create a mock for updating an issue; requires `fixed_version_id` in the body.
-pub fn mock_issue_update_version(version_id: u32) -> Mock {
+/// Create a mock for updating an issue; requires `fields` within the body's `issue`.
+pub fn mock_issue_update(fields: serde_json::Value, response: ResponseTemplate) -> Mock {
     Mock::given(method("PUT"))
         .and(path_regex(r"/issues/\d+\.json"))
-        .and(body_partial_json(
-            serde_json::json!({"issue": {"fixed_version_id": version_id}}),
-        ))
+        .and(body_partial_json(serde_json::json!({ "issue": fields })))
         .and(header("X-Redmine-API-Key", "test-api-key"))
-        .respond_with(ResponseTemplate::new(204))
+        .respond_with(response)
+}
+
+/// Create a mock for updating an issue; requires `fixed_version_id` in the body.
+pub fn mock_issue_update_version(version_id: u32) -> Mock {
+    mock_issue_update(
+        serde_json::json!({"fixed_version_id": version_id}),
+        ResponseTemplate::new(204),
+    )
 }
 
 /// Create a mock for time entries list endpoint.
@@ -439,13 +445,10 @@ pub fn mock_relation_delete() -> Mock {
 
 /// Create a mock for updating an issue; requires the given `parent_issue_id`.
 pub fn mock_issue_update_parent(parent: serde_json::Value) -> Mock {
-    Mock::given(method("PUT"))
-        .and(path_regex(r"/issues/\d+\.json"))
-        .and(body_partial_json(
-            serde_json::json!({"issue": {"parent_issue_id": parent}}),
-        ))
-        .and(header("X-Redmine-API-Key", "test-api-key"))
-        .respond_with(ResponseTemplate::new(204))
+    mock_issue_update(
+        serde_json::json!({"parent_issue_id": parent}),
+        ResponseTemplate::new(204),
+    )
 }
 
 /// Create a mock for creating an issue; requires `parent_issue_id`.

@@ -378,6 +378,9 @@ rdm issue create \
 
 ```bash
 rdm issue update --id 123 --status 3 --done-ratio 50 --notes "Halfway done"
+
+# Change tracker (must be enabled for the issue's project)
+rdm issue update --id 123 --tracker 2
 ```
 
 ### Update an issue with custom fields

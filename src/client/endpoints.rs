@@ -112,6 +112,18 @@ impl RedmineClient {
         .await
     }
 
+    /// Extract Redmine's `{"errors": [...]}` messages, falling back to the raw body.
+    fn error_detail(body: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Errors {
+            errors: Vec<String>,
+        }
+        match serde_json::from_str::<Errors>(body) {
+            Ok(e) if !e.errors.is_empty() => e.errors.join("; "),
+            _ => body.to_string(),
+        }
+    }
+
     /// Parse a JSON response.
     async fn parse_json<T: DeserializeOwned>(response: Response) -> Result<T> {
         let status = response.status();
@@ -139,7 +151,11 @@ impl RedmineClient {
 
         if !status.is_success() {
             return Err(AppError::api(
-                format!("API request failed: {} - {}", status, body),
+                format!(
+                    "API request failed: {} - {}",
+                    status,
+                    Self::error_detail(&body)
+                ),
                 Some(status.as_u16()),
             ));
         }
@@ -438,6 +454,7 @@ impl RedmineClient {
             return Err(AppError::validation("Dry run - no request sent"));
         }
 
+        let tracker_id = update.tracker_id;
         let path = format!("/issues/{}.json", id);
         let request = self
             .request(Method::PUT, &path)
@@ -455,10 +472,21 @@ impl RedmineClient {
 
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(AppError::api(
-                format!("Failed to update issue: {}", body),
-                Some(status.as_u16()),
-            ));
+            let message = format!("Failed to update issue: {}", Self::error_detail(&body));
+            // Redmine rejects trackers not enabled for the issue's project with a 422.
+            return Err(match tracker_id {
+                Some(tracker) if status == StatusCode::UNPROCESSABLE_ENTITY => {
+                    AppError::api_with_hint(
+                        message,
+                        Some(422),
+                        format!(
+                            "Tracker {} may not be enabled for this issue's project. Enable it in the project settings or pick another tracker.",
+                            tracker
+                        ),
+                    )
+                }
+                _ => AppError::api(message, Some(status.as_u16())),
+            });
         }
 
         Ok(())
@@ -618,7 +646,7 @@ impl RedmineClient {
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
             return Err(AppError::api(
-                format!("Failed to delete relation: {}", body),
+                format!("Failed to delete relation: {}", Self::error_detail(&body)),
                 Some(status.as_u16()),
             ));
         }
@@ -863,7 +891,7 @@ impl RedmineClient {
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
             return Err(AppError::api(
-                format!("Failed to delete time entry: {}", body),
+                format!("Failed to delete time entry: {}", Self::error_detail(&body)),
                 Some(status.as_u16()),
             ));
         }

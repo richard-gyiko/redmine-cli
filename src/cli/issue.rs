@@ -253,6 +253,9 @@ pub struct IssueUpdateArgs {
     /// New description.
     #[arg(long)]
     pub description: Option<String>,
+    /// New tracker ID (must be enabled for the issue's project).
+    #[arg(long)]
+    pub tracker: Option<u32>,
     /// New status ID.
     #[arg(long)]
     pub status: Option<u32>,
@@ -413,6 +416,7 @@ pub async fn update(client: &RedmineClient, args: &IssueUpdateArgs) -> Result<Is
     let update = UpdateIssue {
         subject: args.subject.clone(),
         description: args.description.clone(),
+        tracker_id: args.tracker,
         status_id: args.status,
         priority_id: args.priority,
         assigned_to_id: args.assigned_to,
