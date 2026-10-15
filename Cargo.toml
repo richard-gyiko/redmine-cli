@@ -4,6 +4,7 @@ version = "0.2.9"
 edition = "2021"
 description = "Agent-first Redmine CLI with markdown-first output"
 license = "MIT"
+repository = "https://github.com/whizystems/redmine-cli"
 authors = []
 
 [[bin]]

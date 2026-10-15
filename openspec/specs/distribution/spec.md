@@ -7,7 +7,7 @@ TBD - created by archiving change add-scoop-bucket. Update Purpose after archive
 The project SHALL provide a Scoop bucket manifest for Windows package distribution.
 
 #### Scenario: Scoop bucket discovery
-- **WHEN** a user adds `https://github.com/richard-gyiko/redmine-cli` as a Scoop bucket
+- **WHEN** a user adds `https://github.com/whizystems/scoop-bucket` as a Scoop bucket
 - **THEN** Scoop discovers the manifest at `bucket/rdm.json`
 - **AND** the manifest is valid JSON conforming to Scoop schema
 
