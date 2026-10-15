@@ -18,34 +18,34 @@ An agent-first Redmine CLI with markdown-optimized output.
 ### macOS / Linux (Homebrew)
 
 ```bash
-brew tap richard-gyiko/tap
+brew tap whizystems/tap
 brew install rdm
 ```
 
 ### Windows (Scoop)
 
 ```powershell
-scoop bucket add richard-gyiko https://github.com/richard-gyiko/scoop-bucket
+scoop bucket add whizystems https://github.com/whizystems/scoop-bucket
 scoop install rdm
 ```
 
 ### Manual Download
 
-Download the latest release from [GitHub Releases](https://github.com/richard-gyiko/redmine-cli/releases):
+Download the latest release from [GitHub Releases](https://github.com/whizystems/redmine-cli/releases):
 
 ```bash
 # macOS (Apple Silicon)
-curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/whizystems/redmine-cli/releases/latest/download/rdm-aarch64-apple-darwin.tar.gz
 tar -xzf rdm-aarch64-apple-darwin.tar.gz
 sudo mv rdm /usr/local/bin/
 
 # macOS (Intel)
-curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-x86_64-apple-darwin.tar.gz
+curl -LO https://github.com/whizystems/redmine-cli/releases/latest/download/rdm-x86_64-apple-darwin.tar.gz
 tar -xzf rdm-x86_64-apple-darwin.tar.gz
 sudo mv rdm /usr/local/bin/
 
 # Linux
-curl -LO https://github.com/richard-gyiko/redmine-cli/releases/latest/download/rdm-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/whizystems/redmine-cli/releases/latest/download/rdm-x86_64-unknown-linux-gnu.tar.gz
 tar -xzf rdm-x86_64-unknown-linux-gnu.tar.gz
 sudo mv rdm /usr/local/bin/
 
@@ -59,7 +59,7 @@ mv rdm ~/.local/bin/
 
 ```bash
 # Clone the repository
-git clone https://github.com/richard-gyiko/redmine-cli.git
+git clone https://github.com/whizystems/redmine-cli.git
 cd redmine-cli
 
 # Install with cargo
@@ -73,7 +73,7 @@ This repository also includes the `redmine-cli-workflows` skill for agent enviro
 Install it with:
 
 ```bash
-npx skills add https://github.com/richard-gyiko/redmine-cli/ --skill redmine-cli-workflows
+npx skills add https://github.com/whizystems/redmine-cli/ --skill redmine-cli-workflows
 ```
 
 The skill helps agents choose the right `rdm` commands for common Redmine workflows such as connectivity checks, issue lookup and updates, time logging, reporting, and custom-field handling.

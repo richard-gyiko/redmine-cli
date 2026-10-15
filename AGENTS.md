@@ -26,6 +26,4 @@ Before creating a new release:
 3. **Commit and push** - `git commit -m "chore: Bump version to x.y.z"`
 4. **Create release on GitHub** - Tag should match version (e.g., `v0.1.1`)
 5. **Wait for CI** - Release workflow builds binaries and uploads to release
-6. **Update Scoop manifest** - Update `bucket/rdm.json` with:
-   - New `version` field
-   - New `hash` from `SHA256SUMS` release asset
+6. **Verify taps updated** - Release workflow triggers `whizystems/scoop-bucket` and `whizystems/homebrew-tap` updates (needs `TAP_GITHUB_TOKEN` secret)
